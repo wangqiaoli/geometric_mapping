@@ -1,0 +1,35 @@
+<launch>
+  <!-- Arguments -->
+  <arg name="rviz" default="true"/>
+  <arg name="normalviz" default="true"/>
+
+  <!-- Parameters -->
+  <param name="applyBoxFilter" value="false" type="bool"/>
+  <param name="boxFilterBound" value="5.0" type="double"/>
+
+  <param name="applyVoxelGridFilter" value="true" type="bool"/>
+  <param name="voxelGridLeafSize" value="0.5" type="double"/>
+
+  <!-- <param name="pclviz" value="$(arg normalviz)" type="bool"/> -->
+  <param name="findSurfaceNormals" value="true" type="bool"/>
+  <param name="neighborRadius" value="0.5" type="double"/>
+
+  <param name="findCenterAxis" value="false" type="bool"/>
+
+	<!-- Publish Point Cloud From Bag -->
+	<node pkg="pcl_practice" type="pcl_practice_node" name="my_node" output="screen">
+    <!-- Remapping -->
+    <remap from="input" to="/velodyne_points"/>
+    <remap from="output" to="/pcl_display"/>
+  </node>
+
+  	<!-- Play Bag -->
+<!-- 	<arg name="path" default="-d $(find pcl_practice)../../../mine_bags/"/>
+	<arg name="file" default="mine_data_2018-05-14-14-42-01_54"/>
+	<node pkg="rosbag" type="play" name="player" output="screen" args="-l $(arg path)$(arg file).bag"/> -->
+
+  <!-- Visualize the point cloud in rviz -->
+  <group if="$(arg rviz)">
+    <node launch-prefix="nice" name="rviz" pkg="rviz" type="rviz" args="-d $(find pcl_practice)/rviz_config/pcl_tutorial.rviz" required="false"/>
+  </group>
+</launch>
