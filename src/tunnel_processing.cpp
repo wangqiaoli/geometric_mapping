@@ -146,12 +146,51 @@ void getLocalFrame(
 	eigenVals = eigenValues;
 	eigenVecs = eigenVectors;
 }
-//Regression function
-// void getCylinder(
-				 
-// 				) {
-	
-// }
+
+//Regression function using RANSAC
+Eigen::Vector4f* getCylinder(
+								const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud;
+								const pcl::PointCloud<pcl::Normal>::Ptr& normals;
+								const pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree
+							) {
+	//Create segmentation object 
+	pcl::SACSegmentationFromNormals<PointT, pcl::Normal> RANSAC;
+	pcl::ExtractIndices<PointT> extract;
+	pcl::ModelCoefficients::Ptr cylinderCoefficients(new pcl::ModelCoefficients);
+	pcl::PointIndices::Ptr cylinderInliers(new pcl::PointIndices);
+
+	// Create the segmentation object for cylinder segmentation and set all the parameters
+	RANSAC.setOptimizeCoefficients(true);
+	RANSAC.setModelType(pcl::SACMODEL_CYLINDER);
+	RANSAC.setMethodType(pcl::SAC_RANSAC);
+	RANSAC.setNormalDistanceWeight(0.1);
+	RANSAC.setMaxIterations(10000);
+	RANSAC.setDistanceThreshold(0.05);
+	RANSAC.setRadiusLimits(0, 0.1);
+	RANSAC.setInputCloud(cloud);
+	RANSAC.setInputNormals(normals);
+
+	// Obtain the cylinder inliers and coefficients
+	RANSAC.segment(*cylinderInliers, *cylinderCoefficients);
+
+	std::cout << "Cylinder coefficients:\n" << *cylinderCoefficients << std::endl;
+
+	//convert pcl::ModelCoefficients to eigen
+	Eigen::Vector
+
+	// Write the cylinder inliers to disk (DEBUGGING)
+	pcl::PointCloud<PointT>::Ptr cloudCylinder(new pcl::PointCloud<PointT>());
+
+	extract.setInputCloud(cloud);
+	extract.setIndices(cylinderInliers);
+	extract.setNegative(false);
+	extract.filter(*cloudCylinder);
+
+	std::cout << "PointCloud representing the cylindrical component:\n" 
+			  << cloudCylinder->points.size() 
+			  << " data points." 
+			  << std::endl;
+}
 
 ////////////////////////////////////////////////////////
 //Declare Visualization Functions
@@ -167,7 +206,7 @@ visualization_msgs::Marker* rvizArrow(
 										const int& id,
 										const std::string& frame
 									  ) {
-
+	//declare marker
 	visualization_msgs::Marker* centerAxisVec(new visualization_msgs::Marker);
 
 	//set normal parameters
@@ -300,7 +339,52 @@ visualization_msgs::MarkerArray* rvizEigens(const Eigen::Vector3f& eigenVals, co
 }
 
 //Displays Regression in rviz
+visualization_msgs::Marker* rvizCylinder(
+											const Eigen::Vector4f& cylinderCoeffs,
+											const Eigen::Vector3f& centerAxis,
+											const Eigen::Vector3f& scale, 
+											const Eigen::Vector4f& color,
+											const std::string& ns,
+											const int& id,
+											const std::string& frame
+										) {
+	//declare marker
+	visualization_msgs::Marker* cylinder(new visualization_msgs::Marker);
 
+	//set normal parameters
+	cylinder->header.frame_id = frame;
+	cylinder->header.stamp = ros::Time::now();
+	cylinder->header.seq = 0;
+	cylinder->ns = ns;
+	cylinder->id = id;
+	cylinder->type = visualization_msgs::Marker::CYLINDER;
+	cylinder->action = visualization_msgs::Marker::ADD;
+
+	//set pose inline with center axis and convert to quaternion
+	cylinder->pose.position.x = 0;
+	cylinder->pose.position.y = 0;
+	cylinder->pose.position.z = 0;
+
+	//quaternion code
+
+	cylinder->pose.orientation.x = 0.0;
+	cylinder->pose.orientation.y = 0.0;
+	cylinder->pose.orientation.z = 0.0;
+	cylinder->pose.orientation.w = 1.0;
+
+	//set normal scales (diameter, direction, height)
+	cylinder->scale.x = scale(0);
+	cylinder->scale.y = scale(1);
+	cylinder->scale.z = scale(2);
+
+	//set normal colors
+	cylinder->color.a = color(0);
+	cylinder->color.r = color(1);
+	cylinder->color.g = color(2);
+	cylinder->color.b = color(3);
+
+	return cylinder;
+}
 
 //Displays cloud and normals on PCL Visualizer
 void pclvizNormals(
