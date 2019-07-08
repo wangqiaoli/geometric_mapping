@@ -54,7 +54,7 @@ void getLocalFrame(
 				  );
 
 //Regression function
-Eigen::Vector4f* getCylinder(
+Eigen::Vector7f* getCylinder(
 								const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud;
 								const pcl::PointCloud<pcl::Normal>::Ptr& normals;
 								const pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree
@@ -88,9 +88,9 @@ visualization_msgs::MarkerArray* rvizEigens(const Eigen::Vector3f& eigenVals, co
 
 //Displays regression in rviz
 visualization_msgs::Marker* rvizCylinder(
-											const Eigen::Vector4f& cylinderCoeffs,
+											const double& bound,
+											const Eigen::Vector7f& cylinderCoeffs,
 											const Eigen::Vector3f& centerAxis,
-											const Eigen::Vector3f& scale, 
 											const Eigen::Vector4f& color,
 											const std::string& ns,
 											const int& id = 0,

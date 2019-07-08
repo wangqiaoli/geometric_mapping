@@ -148,14 +148,14 @@ void getLocalFrame(
 }
 
 //Regression function using RANSAC
-Eigen::Vector4f* getCylinder(
+Eigen::Vector7f* getCylinder(
 								const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud;
 								const pcl::PointCloud<pcl::Normal>::Ptr& normals;
 								const pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree
 							) {
 	//Create segmentation object 
 	pcl::SACSegmentationFromNormals<PointT, pcl::Normal> RANSAC;
-	pcl::ExtractIndices<PointT> extract;
+	// pcl::ExtractIndices<PointT> extract;
 	pcl::ModelCoefficients::Ptr cylinderCoefficients(new pcl::ModelCoefficients);
 	pcl::PointIndices::Ptr cylinderInliers(new pcl::PointIndices);
 
@@ -173,23 +173,31 @@ Eigen::Vector4f* getCylinder(
 	// Obtain the cylinder inliers and coefficients
 	RANSAC.segment(*cylinderInliers, *cylinderCoefficients);
 
-	std::cout << "Cylinder coefficients:\n" << *cylinderCoefficients << std::endl;
-
 	//convert pcl::ModelCoefficients to eigen
-	Eigen::Vector
+	Eigen::Vector7f* cylinderCoeffs(new Eigen::Vector4f);
+	cylinderCoeffs(0) = cylinderCoefficients->value[0];
+	cylinderCoeffs(1) = cylinderCoefficients->value[1];
+	cylinderCoeffs(2) = cylinderCoefficients->value[2];
+	cylinderCoeffs(3) = cylinderCoefficients->value[3];
+	cylinderCoeffs(4) = cylinderCoefficients->value[4];
+	cylinderCoeffs(5) = cylinderCoefficients->value[5];
+	cylinderCoeffs(6) = cylinderCoefficients->value[6];
 
 	// Write the cylinder inliers to disk (DEBUGGING)
-	pcl::PointCloud<PointT>::Ptr cloudCylinder(new pcl::PointCloud<PointT>());
+	// pcl::PointCloud<PointT>::Ptr cloudCylinder(new pcl::PointCloud<PointT>());
 
-	extract.setInputCloud(cloud);
-	extract.setIndices(cylinderInliers);
-	extract.setNegative(false);
-	extract.filter(*cloudCylinder);
+	// extract.setInputCloud(cloud);
+	// extract.setIndices(cylinderInliers);
+	// extract.setNegative(false);
+	// extract.filter(*cloudCylinder);
 
-	std::cout << "PointCloud representing the cylindrical component:\n" 
+	std::cout << "\nCylinder cloud size:\n" 
 			  << cloudCylinder->points.size() 
-			  << " data points." 
+			  << "\ncoefficients:\n" 
+			  << cylinderCoeffs->transpose()
 			  << std::endl;
+
+	return cylinderCoeffs;
 }
 
 ////////////////////////////////////////////////////////
@@ -340,9 +348,9 @@ visualization_msgs::MarkerArray* rvizEigens(const Eigen::Vector3f& eigenVals, co
 
 //Displays Regression in rviz
 visualization_msgs::Marker* rvizCylinder(
-											const Eigen::Vector4f& cylinderCoeffs,
-											const Eigen::Vector3f& centerAxis,
-											const Eigen::Vector3f& scale, 
+											const double& bound,
+											const Eigen::Vector7f& cylinderCoeffs,
+											const Eigen::Vector3f& centerAxis, 
 											const Eigen::Vector4f& color,
 											const std::string& ns,
 											const int& id,
@@ -361,21 +369,22 @@ visualization_msgs::Marker* rvizCylinder(
 	cylinder->action = visualization_msgs::Marker::ADD;
 
 	//set pose inline with center axis and convert to quaternion
-	cylinder->pose.position.x = 0;
-	cylinder->pose.position.y = 0;
-	cylinder->pose.position.z = 0;
+	cylinder->pose.position.x = cylinderCoeffs[0];
+	cylinder->pose.position.y = cylinderCoeffs[1];
+	cylinder->pose.position.z = cylinderCoeffs[2];
 
-	//quaternion code
+	//convert coeffs to quaternions
+	
 
 	cylinder->pose.orientation.x = 0.0;
 	cylinder->pose.orientation.y = 0.0;
 	cylinder->pose.orientation.z = 0.0;
 	cylinder->pose.orientation.w = 1.0;
 
-	//set normal scales (diameter, direction, height)
-	cylinder->scale.x = scale(0);
-	cylinder->scale.y = scale(1);
-	cylinder->scale.z = scale(2);
+	//scale coefficients (diameter, direction, height)
+	cylinder->scale.x = 2*cylinderCoeffs[6];
+	cylinder->scale.y = 2*cylinderCoeffs[6];
+	cylinder->scale.z = bound;
 
 	//set normal colors
 	cylinder->color.a = color(0);
