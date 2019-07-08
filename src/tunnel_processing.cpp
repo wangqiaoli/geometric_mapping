@@ -1,7 +1,8 @@
-#ifndef PROCESSCLOUD_CPP
-#define PROCESSCLOUD_CPP
+#ifndef TUNNEL_PROCESSING_CPP
+#define TUNNEL_PROCESSING_CPP
 
 //standard functions
+#include <vector>
 #include <limits>
 #include <cmath>
 
@@ -28,6 +29,7 @@
 
 //Project libraries
 #include "paramHandler.hpp"
+#include "tunnel_processing.hpp"
 
 ////////////////////////////////////////////////////////
 //Declare Point Cloud Processing Functions
@@ -47,7 +49,11 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(const double& bound ,const pcl::Po
 }
 
 //Calculates and returns surface normals of point cloud and removes NAN points from the cloud
-pcl::PointCloud<pcl::Normal>::Ptr getNormals(const double& neighborRadius, pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
+pcl::PointCloud<pcl::Normal>::Ptr getNormals(
+												const double& neighborRadius, 
+												pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, 
+												pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree
+											) {
 	//Create the normal estimation class
   	pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> find_normals;
   	find_normals.setInputCloud(cloud);
@@ -55,6 +61,8 @@ pcl::PointCloud<pcl::Normal>::Ptr getNormals(const double& neighborRadius, pcl::
   	//create KD tree of the point cloud
   	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
   	find_normals.setSearchMethod(tree);
+
+  	kdtree = tree;
 
   	//Find normals using nearest neighbor parameter
   	pcl::PointCloud<pcl::Normal>::Ptr cloud_normals(new pcl::PointCloud<pcl::Normal>);
@@ -81,11 +89,15 @@ pcl::PointCloud<pcl::Normal>::Ptr getNormals(const double& neighborRadius, pcl::
 }
 
 //Calculates center axis of the tunnel using the eigenvalues and eigenvectors of the normal cloud
-Eigen::Matrix3f* getLocalFrame(const int& cloudSize, const pcl::PointCloud<pcl::Normal>::Ptr& cloud_normals) {
-	//CENTER Axis -> USE EIGEN
+void getLocalFrame(
+					const int& cloudSize, 
+					const double& weightingFactor, //on [.1, .3]
+					const pcl::PointCloud<pcl::Normal>::Ptr& cloud_normals,
+					Eigen::Vector3f*& eigenVals,
+					Eigen::Matrix3f*& eigenVecs
+				  ) {
 	//initialize weight matrix with curvatures and weight factor
 	Eigen::MatrixXf weights = Eigen::MatrixXf::Zero(cloudSize, cloudSize); //(nxn)
-	float weightingFactor = 0.2; //paper says in range [.1,.3]
 
 	std::cout << "Weights made of size:\t" << cloudSize << std::endl;
 
@@ -116,19 +128,23 @@ Eigen::Matrix3f* getLocalFrame(const int& cloudSize, const pcl::PointCloud<pcl::
 	//Take eigenvectors of the intensity matrix
 	Eigen::SelfAdjointEigenSolver<Eigen::MatrixXf> eigenSolver(intensity);
 
-	Eigen::MatrixXf eigenVals = eigenSolver.eigenvalues(); //(3x1)
-	std::cout << "Eigenvalues are:\n" << eigenSolver.eigenvalues() << std::endl;
+	Eigen::Vector3f* eigenValues(new Eigen::Vector3f);
+	*eigenValues = eigenSolver.eigenvalues(); //(3x1)
+	std::cout << "Eigenvalues are:\n" << eigenSolver.eigenvalues().transpose() << std::endl;
 
-	// Eigen::MatrixXf eigenVecs = eigenSolver.eigenvectors(); //(3x3)
-	// std::cout << "Eigenvectors are:\n" << eigenSolver.eigenvectors() << std::endl;
+	Eigen::Matrix3f* eigenVectors(new Eigen::Matrix3f);
+	*eigenVectors = eigenSolver.eigenvectors(); //(3x3)
+	std::cout << "Eigenvectors are:\n" << eigenSolver.eigenvectors() << std::endl;
 
-	//use minimum eigenvector as center axis and display on rviz
-	Eigen::Vector3f* centerAxis(new Eigen::Vector3f);
-	*centerAxis = eigenSolver.eigenvectors().block<3,1>(0,0); // first eigenvec is always min
+	// //use minimum eigenvector as center axis and display on rviz
+	// Eigen::Vector3f* centerAxis(new Eigen::Vector3f);
+	// *centerAxis = eigenVectors->block<3,1>(0,0); // first eigenvec is always min
 
-	std::cout << "Center Axis is:\n" << centerAxis->transpose() << std::endl;
+	std::cout << "Center Axis is:\n" << eigenVectors->block<3,1>(0,0).transpose() << std::endl;
 
-	return centerAxis;
+	//return values
+	eigenVals = eigenValues;
+	eigenVecs = eigenVectors;
 }
 
 ////////////////////////////////////////////////////////
@@ -139,8 +155,10 @@ Eigen::Matrix3f* getLocalFrame(const int& cloudSize, const pcl::PointCloud<pcl::
 visualization_msgs::Marker* rvizArrow(
 										const Eigen::Vector3f& start, 
 										const Eigen::Vector3f& end,
+										const Eigen::Vector3f& scale, 
+										const Eigen::Vector4f& color,
 										const std::string& ns,
-										const std::string& frame = "/velodyne"
+										const std::string& frame
 									  ) {
 
 	visualization_msgs::Marker* centerAxisVec(new visualization_msgs::Marker);
@@ -166,15 +184,15 @@ visualization_msgs::Marker* rvizArrow(
 	centerAxisVec->points[1].z = end(2);
 
 	//set normal scales
-	centerAxisVec->scale.x = 0.05;
-	centerAxisVec->scale.y = 0.08;
-	centerAxisVec->scale.z = 0.01;
+	centerAxisVec->scale.x = scale(0);
+	centerAxisVec->scale.y = scale(1);
+	centerAxisVec->scale.z = scale(2);
 
 	//set normal colors
-	centerAxisVec->color.a = 1.0;
-	centerAxisVec->color.r = 0.0;
-	centerAxisVec->color.g = 0.0;
-	centerAxisVec->color.b = 1.0;
+	centerAxisVec->color.a = color(0);
+	centerAxisVec->color.r = color(1);
+	centerAxisVec->color.g = color(2);
+	centerAxisVec->color.b = color(3);
 
 	return centerAxisVec;
 }
@@ -182,35 +200,68 @@ visualization_msgs::Marker* rvizArrow(
 //Displays surface normals in rviz using VoxelGrid Filter and KD tree to free computing power
 visualization_msgs::MarkerArray* rvizNormals(
 												const double& leafSize, 
-												pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
-												pcl::PointCloud<pcl::Normal>::Ptr normals
+												const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, 
+												const pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree,
+												const pcl::PointCloud<pcl::Normal>::Ptr& normals
 											) {
- //  	//Implement VoxelGrid Filter
-	// pcl::PointCloud<pcl::PointXYZ> cloudVoxelFiltered(new pcl::PointCloud<pcl::PointXYZ>);
-	// double leafSize = params->getLeafSize();
+	//Implement VoxelGrid Filter
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudVoxelFiltered(new pcl::PointCloud<pcl::PointXYZ>);
 
-	// pcl::VoxelGrid<pcl::PointCloud<pcl::PointXYZ>> voxelGridFilter; //create voxelgrid object
-	// voxelGridFilter.setInputCloud(cloudBoxFilteredPtr);
-	// voxelGridFilter.setLeafSize(leafSize, leafSize, leafSize);
-	// voxelGridFilter.filter(*cloudVoxelFiltered);
+	pcl::VoxelGrid<pcl::PointXYZ> voxelGridFilter; //create voxelgrid object
+	voxelGridFilter.setInputCloud(cloud);
+	voxelGridFilter.setLeafSize(leafSize, leafSize, leafSize);
+	voxelGridFilter.filter(*cloudVoxelFiltered);
 
-	// pcl::PCLPointCloud2ConstPtr cloudVoxelFilteredPtr(cloudVoxelFiltered);
+	ROS_INFO("VoxelGrid filter applied...");
 
-	// ROS_INFO("VoxelGrid filter applied...");
-
-	// //Use KD tree to build cloud of nearest neighbors to voxelgrid cloud
-
-
-	// //Display normals of the nearest neighbor cloud
-
-	int width = 0;
+	//Add normals of the nearest neighbor cloud to MarkerArray
 	visualization_msgs::MarkerArray* normalVecs(new visualization_msgs::MarkerArray);
-	// for(int i = 0; i < cloud->points().size(); i++) {
-	// 	rvizArrow()
-	// }
+	normalVecs->markers.resize(cloudVoxelFiltered->points.size());
+
+	Eigen::Vector3f startVec = Eigen::Vector3f::Zero();
+	Eigen::Vector3f endVec = Eigen::Vector3f::Zero();
+	Eigen::Vector3f scaleVec = Eigen::Vector3f::Zero();
+	Eigen::Vector4f colorVec;
+	colorVec << 1, 0, 0, 1;
+
+	int KNN = 1;
+	int kdint = 0; //garbage
+	pcl::PointXYZ* KNNpoint(new pcl::PointXYZ);
+	std::vector<int> kIndices(cloudVoxelFiltered->points.size()); 
+	std::vector<float> kDists(cloudVoxelFiltered->points.size()); //garbage
+	for(int i = 0; i < cloudVoxelFiltered->points.size(); i++) {
+		//Use KD tree to build cloud of nearest neighbors to KNN cloud
+		kdint = kdtree->nearestKSearch(*KNNpoint, KNN, kIndices, kDists);
+
+		std::cout << "\nIndices are:\n" << kIndices.at(0) << std::endl;
+
+		// //init start point in eigen
+		// startVec(0) = KNNpoint->x;
+		// startVec(1) = KNNpoint->y;
+		// startVec(2) = KNNpoint->z;
+
+		// //init endpoint in eigen
+		// endVec(0) = normals(kIndices).normal[0];
+		// endVec(1) = normals(kIndices).normal[1];
+		// endVec(2) = normals(kIndices).normal[2];
+
+		//change scale and
+
+		normalVecs->markers[i] = *rvizArrow(startVec, endVec, scaleVec, colorVec, "normals");
+	}
+
+	ROS_INFO("Normals posted to rviz...");
 
 	return normalVecs;
 }
+
+//Displays eigenspace in rviz
+// visualization_msgs::MarkerArray* rvizEigens(const Eigen::Vector3f& eigenVals, const Eigen::Matrix3f& eigenVecs) {
+
+// }
+
+//Displays Regression in rviz
+
 
 //Displays cloud and normals on PCL Visualizer
 void pclvizNormals(

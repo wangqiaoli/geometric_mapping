@@ -10,22 +10,10 @@
 
 //Deals with the parameter data
 Parameters::Parameters(ros::NodeHandle& node) {
-	if(node.getParam("applyBoxFilter", applyBoxFilter)) {
-		ROS_INFO("applyBoxFilter set to:\t %d", applyBoxFilter);
-	} else {
-		ROS_INFO("ERROR: applyBoxFilter set to default...");
-	}
-
 	if(node.getParam("boxFilterBound", boxFilterBound)) {
 		ROS_INFO("boxFilterBound set to:\t %f", boxFilterBound);
 	} else {
 		ROS_INFO("ERROR: boxFilterBound set to default...");
-	}
-
-	if(node.getParam("applyVoxelGridFilter", applyVoxelGridFilter)) {
-		ROS_INFO("applyVoxelGridFilter set to:\t %d", applyVoxelGridFilter);
-	} else {
-		ROS_INFO("ERROR: applyVoxelGridFilter set to default...");
 	}
 
 	if(node.getParam("voxelGridLeafSize", leafSize)) {
@@ -34,61 +22,84 @@ Parameters::Parameters(ros::NodeHandle& node) {
 		ROS_INFO("ERROR: leafSize set to default...");
 	}
 
-	// if(node.getParam("pclviz", pclviz)) {
-	// 	ROS_INFO("pclviz set to:\t %d", pclviz);
-	// } else {
-	// 	ROS_INFO("ERROR: pclviz set to default...");
-	// }
-
-	if(node.getParam("findSurfaceNormals", findSurfaceNormals)) {
-		ROS_INFO("findSurfaceNormals set to:\t %d", findSurfaceNormals);
-	} else {
-		ROS_INFO("ERROR: findSurfaceNormals set to default...");
-	}
-
 	if(node.getParam("neighborRadius", neighborRadius)) {
 		ROS_INFO("neighborRadius set to:\t %f", neighborRadius);
 	} else {
 		ROS_INFO("ERROR: neighborRadius set to default...");
 	}
 
-	if(node.getParam("findCenterAxis", findCenterAxis)) {
-		ROS_INFO("findCenterAxis set to:\t %d", findCenterAxis);
+	if(node.getParam("weightingFactor", weightingFactor)) {
+		ROS_INFO("weightingFactor set to:\t %f", weightingFactor);
 	} else {
-		ROS_INFO("ERROR: findCenterAxis set to default...");
+		ROS_INFO("ERROR: weightingFactor set to default...");
+	}
+
+	if(node.getParam("displayCloud", rvizCloud)) {
+		ROS_INFO("displayCloud set to:\t %d", rvizCloud);
+	} else {
+		ROS_INFO("ERROR: displayCloud set to default...");
+	}
+
+	if(node.getParam("displayNormals", rvizNormals)) {
+		ROS_INFO("displayNormals set to:\t %d", rvizNormals);
+	} else {
+		ROS_INFO("ERROR: displayNormals set to default...");
+	}
+
+	if(node.getParam("displayCenterAxis", rvizCenterAxis)) {
+		ROS_INFO("displayCenterAxis set to:\t %d", rvizCenterAxis);
+	} else {
+		ROS_INFO("ERROR: displayCenterAxis set to default...");
+	}
+
+	// if(node.getParam("displayCylinder", rvizCylinder)) {
+	// 	ROS_INFO("displayCylinder set to:\t %d", rvizCylinder);
+	// } else {
+	// 	ROS_INFO("ERROR: displayCylinder set to default...");
+	// }
+
+	if(node.getParam("usePCLViz", pclviz)) {
+		ROS_INFO("pclviz set to:\t %d", pclviz);
+	} else {
+		ROS_INFO("ERROR: pclviz set to default...");
 	}
 }
-
-bool Parameters::getApplyBoxFilter() {
-	return applyBoxFilter;
-} 
 
 double Parameters::getBoxFilterBound() {
 	return boxFilterBound;
 }
 
-bool Parameters::getApplyVoxelGridFilter() {
-	return applyVoxelGridFilter;
-} 
-
 double Parameters::getLeafSize() {
 	return leafSize;
-}  
-
-// bool getPCLViz() {
-// 	return pclviz;
-// }
-
-bool Parameters::getFindSurfaceNormals() {
-	return findSurfaceNormals;
-} 
+}
 
 double Parameters::getNeighborRadius() {
 	return neighborRadius;
+} 
+
+double Parameters::getWeightingFactor() {
+	return weightingFactor;
+}	
+
+bool Parameters::displayCloud() {
+	return rvizCloud;
 }
 
-bool Parameters::getFindCenterAxis() {
-	return findCenterAxis;
-} 
+bool Parameters::displayNormals() {
+	return rvizNormals;
+}
+
+bool Parameters::displayCenterAxis() {
+	return rvizCenterAxis;
+}
+
+// bool Parameters::displayCylinder() {
+// 	return rvizCylinder;
+// }
+
+bool Parameters::usePCLViz() {
+	return pclviz;
+}
+
 
 #endif

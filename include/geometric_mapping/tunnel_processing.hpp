@@ -1,7 +1,8 @@
-ifndef PROCESSCLOUD_HPP
-#define PROCESSCLOUD_HPP
+#ifndef TUNNEL_PROCESSING_HPP
+#define TUNNEL_PROCESSING_HPP
 
 //standard functions
+#include <vector>
 #include <limits>
 #include <cmath>
 
@@ -37,13 +38,23 @@ ifndef PROCESSCLOUD_HPP
 pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(const double& bound ,const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud);
 
 //Calculates and returns surface normals of point cloud and removes NAN points from the cloud
-pcl::PointCloud<pcl::Normal>::Ptr getNormals(const double& neighborRadius, pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud);
+pcl::PointCloud<pcl::Normal>::Ptr getNormals(
+												const double& neighborRadius, 
+												pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
+												pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree //set to dynamic memory in function
+											);
 
 //Calculates center axis of the tunnel using the eigenvalues and eigenvectors of the normal cloud
-Eigen::Vector3f* getLocalFrame(const int& cloudSize, const pcl::PointCloud<pcl::Normal>::Ptr& cloud_normals);
-//		add weighting factor
+void getLocalFrame(
+					const int& cloudSize, 
+					const double& weightingFactor, //on [.1, .3]
+					const pcl::PointCloud<pcl::Normal>::Ptr& cloud_normals,
+					Eigen::Vector3f*& eigenVals, //want to set to dynamic memory in function
+					Eigen::Matrix3f*& eigenVecs //want to set to dynamic memory in function
+				  );
 
 //Regression function
+
 
 
 ////////////////////////////////////////////////////////
@@ -54,6 +65,8 @@ Eigen::Vector3f* getLocalFrame(const int& cloudSize, const pcl::PointCloud<pcl::
 visualization_msgs::Marker* rvizArrow(
 										const Eigen::Vector3f& start, 
 										const Eigen::Vector3f& end,
+										const Eigen::Vector3f& scale, 
+										const Eigen::Vector4f& color,
 										const std::string& ns,
 										const std::string& frame = "/velodyne"
 									  );
@@ -61,9 +74,13 @@ visualization_msgs::Marker* rvizArrow(
 //Displays surface normals in rviz using VoxelGrid Filter and KD tree to free computing power
 visualization_msgs::MarkerArray* rvizNormals(
 												const double& leafSize, 
-												pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
-												pcl::PointCloud<pcl::Normal>::Ptr normals
+												const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, 
+												const pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree,
+												const pcl::PointCloud<pcl::Normal>::Ptr& normals
 											);
+
+//Displays eigenspace in rviz
+visualization_msgs::MarkerArray* rvizEigens(const Eigen::Vector3f& eigenVals, const Eigen::Matrix3f& eigenVecs);
 
 //Displays regression in rviz
 

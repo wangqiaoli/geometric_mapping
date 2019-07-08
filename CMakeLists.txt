@@ -106,7 +106,7 @@ find_package(Eigen3 3.3 REQUIRED)
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 INCLUDE_DIRS include
-LIBRARIES pcl_practice
+LIBRARIES geometric_mapping
 CATKIN_DEPENDS pcl_conversions pcl_ros roscpp sensor_msgs
 #  DEPENDS system_lib
 )
@@ -140,7 +140,7 @@ include_directories(
 add_executable(${PROJECT_NAME}_node 
   src/${PROJECT_NAME}.cpp 
   src/paramHandler.cpp 
-  src/processCloud.cpp
+  src/tunnel_processing.cpp
 )
 
 ## Rename C++ executable without prefix

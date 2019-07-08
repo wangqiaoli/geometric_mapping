@@ -9,27 +9,31 @@
 class Parameters {
 	public:
 		Parameters(ros::NodeHandle& node);
-		bool getApplyBoxFilter();
-		double getBoxFilterBound(); 
-		bool getApplyVoxelGridFilter();
+
+		double getBoxFilterBound();
 		double getLeafSize();
-		// bool getPCLViz();
-		bool getFindSurfaceNormals();
 		double getNeighborRadius(); 
-		bool getFindCenterAxis();
+		double getWeightingFactor();
+		
+		bool displayCloud();
+		bool displayNormals();
+		bool displayCenterAxis();
+		//bool displayCylinder();
+
+		bool usePCLViz();
 
 	private:
-		bool debug = true;
-		bool applyBoxFilter = true;
 		double boxFilterBound = 5.0;
-		bool applyVoxelGridFilter = true;
 		double leafSize = .1;
-		// bool pclviz = false;
-		bool findSurfaceNormals = true;
 		double neighborRadius = .03;
-		bool findCenterAxis = true;
-};
+		double weightingFactor = .2;
 
-//MAKE CLASS FOR POINT CLOUD HANDLING
+		bool rvizCloud = true;
+		bool rvizNormals = true;
+		bool rvizCenterAxis = true;
+		//bool rvixCyliinder = true;
+
+		bool pclviz = false;
+};
 
 #endif

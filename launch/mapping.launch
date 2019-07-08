@@ -1,26 +1,29 @@
 <launch>
   <!-- Arguments -->
   <arg name="rviz" default="true"/>
-  <arg name="normalviz" default="true"/>
+  <arg name="pclviz" default="false"/>
 
   <!-- Parameters -->
-  <param name="applyBoxFilter" value="false" type="bool"/>
   <param name="boxFilterBound" value="5.0" type="double"/>
-
-  <param name="applyVoxelGridFilter" value="true" type="bool"/>
   <param name="voxelGridLeafSize" value="0.5" type="double"/>
-
-  <!-- <param name="pclviz" value="$(arg normalviz)" type="bool"/> -->
-  <param name="findSurfaceNormals" value="true" type="bool"/>
   <param name="neighborRadius" value="0.5" type="double"/>
+  <param name="weightingFactor" value=".2" type="double"/>
 
-  <param name="findCenterAxis" value="false" type="bool"/>
+  <param name="displayCloud" value="true" type="bool"/>
+  <param name="displayNormals" value="false" type="bool"/>
+  <param name="displayCenterAxis" value="true" type="bool"/>
+  <param name="displayCylinder" value="false" type="bool"/>
+
+  <param name="usePCLViz" value="$(arg pclviz)" type="bool"/>
 
 	<!-- Publish Point Cloud From Bag -->
-	<node pkg="pcl_practice" type="pcl_practice_node" name="my_node" output="screen">
+	<node pkg="geometric_mapping" type="geometric_mapping_node" name="geometric_mapping_node" output="screen">
     <!-- Remapping -->
     <remap from="input" to="/velodyne_points"/>
-    <remap from="output" to="/pcl_display"/>
+
+    <remap from="cloudOutput" to="/choppedCloud"/>
+    <remap from="normalsOutput" to="/surfaceNormals"/>
+    <remap from="eigenBasisOutput" to="/eigenBasis"/>
   </node>
 
   	<!-- Play Bag -->
@@ -30,6 +33,6 @@
 
   <!-- Visualize the point cloud in rviz -->
   <group if="$(arg rviz)">
-    <node launch-prefix="nice" name="rviz" pkg="rviz" type="rviz" args="-d $(find pcl_practice)/rviz_config/pcl_tutorial.rviz" required="false"/>
+    <node launch-prefix="nice" name="rviz" pkg="rviz" type="rviz" args="-d $(find geometric_mapping)/rviz_config/centerAxis.rviz" required="false"/>
   </group>
 </launch>

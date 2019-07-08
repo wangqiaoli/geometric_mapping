@@ -2,6 +2,7 @@
 #define PCL_PRACTICE_CPP
 
 //standard functions
+#include <vector>
 #include <limits>
 #include <cmath>
 
@@ -28,16 +29,20 @@
 
 //Project libraries
 #include "paramHandler.hpp"
-#include "processCloud.hpp"
-
-int pcl_var = 0;
-//pcl::visualization::PCLVisualizer viewer;
-
-//Create ROS publisher object
-ros::Publisher pub;
+#include "tunnel_processing.hpp"
 
 //Creates parameter object
 Parameters* params = nullptr;
+
+//Create ROS publisher objects
+ros::Publisher cloudPub;
+ros::Publisher normalsPub;
+ros::Publisher centerAxisPub;
+ros::Publisher cylinderPub;
+
+//create PCL visualizer object
+int pcl_var = 0;
+pcl::visualization::PCLVisualizer* viewer = nullptr;
 
 //Define Publisher function
 void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
@@ -54,60 +59,115 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 	ROS_INFO("Box filter applied...");
 
 	//Find Surface Normals
-	pcl::PointCloud<pcl::Normal>::Ptr cloudNormals = getNormals(params->getNeighborRadius(), cloudChopped);
+	pcl::search::KdTree<pcl::PointXYZ>::Ptr kdtree(nullptr);
+	pcl::PointCloud<pcl::Normal>::Ptr cloudNormals = getNormals(params->getNeighborRadius(), cloudChopped, kdtree);
 
   	//visualize normals
-  	//pclvizNormals(pcl_var, viewer, cloudChopped, cloudNormals);
-	//rvizNormals(cloudChopped, cloudNormals)
+  	if(params->usePCLViz()) {
+  		pclvizNormals(pcl_var, *viewer, cloudChopped, cloudNormals);
+  	}
 
 	ROS_INFO("Surface normals found...");
 
-	Eigen::Vector3f* centerAxis = getLocalFrame(cloudChopped->points.size(), cloudNormals);
+	Eigen::Vector3f* eigenVals = nullptr;
+	Eigen::Matrix3f* eigenVecs = nullptr;
+
+	getLocalFrame(
+					cloudChopped->points.size(), 
+					params->getWeightingFactor(),
+					cloudNormals,
+					eigenVals,
+					eigenVecs
+				  );
+
+	//get center axis and assume that first eigenvec is smallest
+	Eigen::Vector3f* centerAxis(new Eigen::Vector3f);
+	*centerAxis = eigenVecs->block<3,1>(0,0);
 
 	ROS_INFO("Center Axis found...");
 
-	visualization_msgs::Marker* centerAxisDisp = rvizArrow(Eigen::Vector3f::Zero(), *centerAxis, "centerAxis");
+	Eigen::Vector3f centerAxisScale;
+	centerAxisScale << 0.1, 0.3, 0.25; //legnth, width, height
+	Eigen::Vector4f centerAxisColor;
+	centerAxisColor << 1, 0, 0, 1;
+
+	visualization_msgs::Marker* centerAxisDisp = rvizArrow(
+															Eigen::Vector3f::Zero(), 
+															*centerAxis, 
+															centerAxisScale,
+															centerAxisColor,
+															"centerAxis"
+														  );
 
 	ROS_INFO("Center Axis Marker Made...");
 
-	//Convert Back to ROS
-	sensor_msgs::PointCloud2 output;
+	if(params->displayCloud()) {
+		//convert the pcl::PointCloud to ros message
+		sensor_msgs::PointCloud2 cloudROS;
+		pcl::toROSMsg(*cloudChopped, cloudROS);
 
-	bool dispArrow = true;
-	if(!dispArrow) {
-		pcl::toROSMsg(*cloudChopped, output);
-
-		//Publish the data
-		pub.publish(output);
-	} else {
-		//Publish the data
-		pub.publish(*centerAxisDisp);
+		//Publish the box filtered cloud
+		cloudPub.publish(cloudROS);
 	}
+
+	if(params->displayNormals()) {
+		// //Publish the normals
+		// normalsPub.publish(*normalsDisp);
+	}
+
+	if(params->displayCenterAxis()) {
+		//Publish the center axis
+		centerAxisPub.publish(*centerAxisDisp);
+	}
+
+	// if(params->displayCylinder()) {
+	// 	//Publish the data
+	// 	cylinderPub.publish(*cylinderDisp);
+	// }
 
 	ROS_INFO("Published...");
 }
 
 //main function creates subscriber for the published point cloud
 int main(int argc, char** argv) {
-	//Initialize ROS
-	ros::init(argc, argv, "pcl_practice_node");
+	//Initialize ROS cloud topic
+	ros::init(argc, argv, "geometric_mapping_node");
 	ros::NodeHandle node;
 
 	//Parameters params;
 	Parameters param(node);
 	params = &param;
 
-	ROS_INFO("Launched pcl_practice_node...");
+	ROS_INFO("Launched geometric_mapping_node...");
+
+	//inits PCL viewer
+	if(params->usePCLViz()) {
+		pcl::visualization::PCLVisualizer pclViewer;
+		viewer = &pclViewer;
+	}
 
 	//Create subscriber for the input pointcloud
 	ros::Subscriber sub = node.subscribe("input", 1, cloud_cb);
 
-	//Create ROS publisher for point cloud
-	if(params->getFindSurfaceNormals()) {
-		pub = node.advertise<visualization_msgs::Marker>("output", 10);
-	} else {
-		pub = node.advertise<sensor_msgs::PointCloud2>("output", 10);
+	//Create ROS publisher for box filtered point cloud
+	if(params->displayCloud()) {
+		cloudPub = node.advertise<sensor_msgs::PointCloud2>("cloudOutput", 10);
 	}
+
+	//Create ROS publisher for normals
+	if(params->displayNormals()) {
+		normalsPub = node.advertise<visualization_msgs::MarkerArray>("normalsOutput", 10);
+	}
+
+	//Create ROS publisher for center Axis and scaled eigenvecs
+	if(params->displayCenterAxis()) {
+		centerAxisPub = node.advertise<visualization_msgs::Marker>("eigenBasisOutput", 10);
+	}
+
+	//Create ROS publisher for cylinder
+	// if(params->displayCylinder()) {
+	// 	cylinderPub = node.advertise<visualization_msgs::Marker>("centerAxisOutput", 10);
+	// }
 
 	//Calls message callbacks rapidly in seperate threads
 	ros::spin();
