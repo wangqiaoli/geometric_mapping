@@ -33,6 +33,6 @@
 
   <!-- Visualize the point cloud in rviz -->
   <group if="$(arg rviz)">
-    <node launch-prefix="nice" name="rviz" pkg="rviz" type="rviz" args="-d $(find geometric_mapping)/rviz_config/centerAxis.rviz" required="false"/>
+    <node launch-prefix="nice" name="rviz" pkg="rviz" type="rviz" args="-d $(find geometric_mapping)/rviz_config/mapping.rviz" required="true"/>
   </group>
 </launch>

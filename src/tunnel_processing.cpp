@@ -146,6 +146,12 @@ void getLocalFrame(
 	eigenVals = eigenValues;
 	eigenVecs = eigenVectors;
 }
+//Regression function
+// void getCylinder(
+				 
+// 				) {
+	
+// }
 
 ////////////////////////////////////////////////////////
 //Declare Visualization Functions
@@ -158,6 +164,7 @@ visualization_msgs::Marker* rvizArrow(
 										const Eigen::Vector3f& scale, 
 										const Eigen::Vector4f& color,
 										const std::string& ns,
+										const int& id,
 										const std::string& frame
 									  ) {
 
@@ -168,7 +175,7 @@ visualization_msgs::Marker* rvizArrow(
 	centerAxisVec->header.stamp = ros::Time::now();
 	centerAxisVec->header.seq = 0;
 	centerAxisVec->ns = ns;
-	centerAxisVec->id = 0;
+	centerAxisVec->id = id;
 	centerAxisVec->type = visualization_msgs::Marker::ARROW;
 	centerAxisVec->action = visualization_msgs::Marker::ADD;
 
@@ -220,34 +227,28 @@ visualization_msgs::MarkerArray* rvizNormals(
 
 	Eigen::Vector3f startVec = Eigen::Vector3f::Zero();
 	Eigen::Vector3f endVec = Eigen::Vector3f::Zero();
-	Eigen::Vector3f scaleVec = Eigen::Vector3f::Zero();
-	Eigen::Vector4f colorVec;
-	colorVec << 1, 0, 0, 1;
+	Eigen::Vector3f scaleVec(0.025, 0.075, 0.0625);
+	Eigen::Vector4f colorVec(1, 0, 0, 1);
 
 	int KNN = 1;
 	int kdint = 0; //garbage
-	pcl::PointXYZ* KNNpoint(new pcl::PointXYZ);
-	std::vector<int> kIndices(cloudVoxelFiltered->points.size()); 
-	std::vector<float> kDists(cloudVoxelFiltered->points.size()); //garbage
+	std::vector<int> kIndices; //garbage
+	std::vector<float> kDists; //garbage
 	for(int i = 0; i < cloudVoxelFiltered->points.size(); i++) {
 		//Use KD tree to build cloud of nearest neighbors to KNN cloud
-		kdint = kdtree->nearestKSearch(*KNNpoint, KNN, kIndices, kDists);
+		kdint = kdtree->nearestKSearch(cloudVoxelFiltered->points[i], KNN, kIndices, kDists);
 
-		std::cout << "\nIndices are:\n" << kIndices.at(0) << std::endl;
+		//init start point in eigen
+		startVec(0) = cloudVoxelFiltered->points[i].x;
+		startVec(1) = cloudVoxelFiltered->points[i].y;
+		startVec(2) = cloudVoxelFiltered->points[i].z;
 
-		// //init start point in eigen
-		// startVec(0) = KNNpoint->x;
-		// startVec(1) = KNNpoint->y;
-		// startVec(2) = KNNpoint->z;
+		//init endpoint in eigen
+		endVec(0) = normals->at(kIndices.at(0)).normal[0];
+		endVec(1) = normals->at(kIndices.at(0)).normal[1];
+		endVec(2) = normals->at(kIndices.at(0)).normal[2];
 
-		// //init endpoint in eigen
-		// endVec(0) = normals(kIndices).normal[0];
-		// endVec(1) = normals(kIndices).normal[1];
-		// endVec(2) = normals(kIndices).normal[2];
-
-		//change scale and
-
-		normalVecs->markers[i] = *rvizArrow(startVec, endVec, scaleVec, colorVec, "normals");
+		normalVecs->markers[i] = *rvizArrow(startVec, endVec, scaleVec, colorVec, "normals", i);
 	}
 
 	ROS_INFO("Normals posted to rviz...");
@@ -256,9 +257,47 @@ visualization_msgs::MarkerArray* rvizNormals(
 }
 
 //Displays eigenspace in rviz
-// visualization_msgs::MarkerArray* rvizEigens(const Eigen::Vector3f& eigenVals, const Eigen::Matrix3f& eigenVecs) {
+visualization_msgs::MarkerArray* rvizEigens(const Eigen::Vector3f& eigenVals, const Eigen::Matrix3f& eigenVecs) {
+	visualization_msgs::MarkerArray* eigenBasis(new visualization_msgs::MarkerArray);
+	eigenBasis->markers.resize(3); //for E1E2E3 basis
 
-// }
+	//normalize eigenvals and use to set legnth of arrow basis
+	Eigen::Vector3f eigenValNorms = (1/eigenVals.norm()) * eigenVals.cwiseAbs();
+
+	// std::cout << "\n\neigenNorms:" << eigenValNorms.transpose() << std::endl;
+	// std::cout << "eigen2:" << eigenVecs.block<3,1>(0,1) << std::endl;
+	// std::cout << "eigen3:" << eigenVecs.block<3,1>(0,2) << std::endl;
+	// std::cout << "vectest:" << Eigen::Vector4f(1.0, 1.0, 0.0, 0.0) << std::endl;
+
+	for(int i = 0; i < 3; i++) {
+		//arrow legnth, arrow width, cone height proportional to eigenvals
+		Eigen::Vector3f scale(
+								0.1 - (0.05 * eigenValNorms(i)), 
+								0.3 - (0.15 * eigenValNorms(i)), 
+								0.25 - (0.125 * eigenValNorms(i))
+							 );
+
+		Eigen::Vector4f color; //ARGB -> E1E2E3
+		if(i == 0) {
+			color = Eigen::Vector4f(1.0, 1.0, 0.0, 0.0);
+		} else if(i == 1) {
+			color = Eigen::Vector4f(1.0, 0.0, 1.0, 0.0);
+		} else {
+			color = Eigen::Vector4f(1.0, 0.0, 0.0, 1.0);
+		}
+
+		eigenBasis->markers[i] = *rvizArrow(
+												Eigen::Vector3f::Zero(), 
+												eigenVecs.block<3,1>(0,i), //vecs by col
+												scale,
+												color,
+												"eigenBasis",
+												i
+											);
+	}
+
+	return eigenBasis;
+}
 
 //Displays Regression in rviz
 
@@ -270,12 +309,12 @@ void pclvizNormals(
 					const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, 
 					const pcl::PointCloud<pcl::Normal>::Ptr& normals
 				  ) {
-  	viewer.setBackgroundColor (0, 0, 0); //black
+  	viewer.setBackgroundColor(0, 0, 0); //black
   	viewer.addPointCloud<pcl::PointXYZ>(cloud, "cloud" + std::to_string(pcl_var));
   	//PCL_VISUALIZER_POINT_SIZE is int starting from 1
   	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "cloud" + std::to_string(pcl_var));
   	viewer.addPointCloudNormals<pcl::PointXYZ, pcl::Normal>(cloud, normals, 10, .1, "normals" + std::to_string(pcl_var));
-  	viewer.addCoordinateSystem (1.0);
+  	viewer.addCoordinateSystem(1.0);
   	viewer.initCameraParameters();
   	viewer.spinOnce();
   	pcl_var++;

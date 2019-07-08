@@ -67,6 +67,13 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
   		pclvizNormals(pcl_var, *viewer, cloudChopped, cloudNormals);
   	}
 
+  	visualization_msgs::MarkerArray* normalsDisp = rvizNormals(
+  																params->getLeafSize(),
+  																cloudChopped,
+  																kdtree,
+  																cloudNormals
+  															  );
+
 	ROS_INFO("Surface normals found...");
 
 	Eigen::Vector3f* eigenVals = nullptr;
@@ -86,18 +93,7 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 
 	ROS_INFO("Center Axis found...");
 
-	Eigen::Vector3f centerAxisScale;
-	centerAxisScale << 0.1, 0.3, 0.25; //legnth, width, height
-	Eigen::Vector4f centerAxisColor;
-	centerAxisColor << 1, 0, 0, 1;
-
-	visualization_msgs::Marker* centerAxisDisp = rvizArrow(
-															Eigen::Vector3f::Zero(), 
-															*centerAxis, 
-															centerAxisScale,
-															centerAxisColor,
-															"centerAxis"
-														  );
+	visualization_msgs::MarkerArray* eigenBasis = rvizEigens(*eigenVals, *eigenVecs);
 
 	ROS_INFO("Center Axis Marker Made...");
 
@@ -111,13 +107,13 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 	}
 
 	if(params->displayNormals()) {
-		// //Publish the normals
-		// normalsPub.publish(*normalsDisp);
+		//Publish the normals
+		normalsPub.publish(*normalsDisp);
 	}
 
 	if(params->displayCenterAxis()) {
 		//Publish the center axis
-		centerAxisPub.publish(*centerAxisDisp);
+		centerAxisPub.publish(*eigenBasis);
 	}
 
 	// if(params->displayCylinder()) {
@@ -161,7 +157,7 @@ int main(int argc, char** argv) {
 
 	//Create ROS publisher for center Axis and scaled eigenvecs
 	if(params->displayCenterAxis()) {
-		centerAxisPub = node.advertise<visualization_msgs::Marker>("eigenBasisOutput", 10);
+		centerAxisPub = node.advertise<visualization_msgs::MarkerArray>("eigenBasisOutput", 10);
 	}
 
 	//Create ROS publisher for cylinder

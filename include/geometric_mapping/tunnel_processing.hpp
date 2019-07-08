@@ -54,8 +54,9 @@ void getLocalFrame(
 				  );
 
 //Regression function
-
-
+// void getCylinder(
+				 
+// 				);
 
 ////////////////////////////////////////////////////////
 //Declare Visualization Functions
@@ -68,6 +69,7 @@ visualization_msgs::Marker* rvizArrow(
 										const Eigen::Vector3f& scale, 
 										const Eigen::Vector4f& color,
 										const std::string& ns,
+										const int& id = 0,
 										const std::string& frame = "/velodyne"
 									  );
 
