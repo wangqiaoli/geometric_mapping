@@ -174,7 +174,7 @@ Eigen::VectorXf* getCylinder(
 	RANSAC.setNormalDistanceWeight(0.1);
 	RANSAC.setMaxIterations(10000);
 	RANSAC.setDistanceThreshold(0.05);
-	RANSAC.setRadiusLimits(0, 0.1);
+	RANSAC.setRadiusLimits(0, 15);
 	RANSAC.setInputCloud(cloud);
 	RANSAC.setInputNormals(normals);
 

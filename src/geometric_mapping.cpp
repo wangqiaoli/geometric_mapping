@@ -40,10 +40,6 @@
 #include "paramHandler.hpp"
 #include "tunnel_processing.hpp"
 
-//Project libraries
-#include "paramHandler.hpp"
-#include "tunnel_processing.hpp"
-
 //Creates parameter object
 Parameters* params = nullptr;
 
@@ -151,7 +147,7 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 		cylinderPub.publish(*cylinderDisp);
 	}
 
-	ROS_INFO("Published...");
+	ROS_INFO("Callback ended...\n\n");
 }
 
 //main function creates subscriber for the published point cloud
