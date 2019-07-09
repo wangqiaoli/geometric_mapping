@@ -18,7 +18,7 @@ class Parameters {
 		bool displayCloud();
 		bool displayNormals();
 		bool displayCenterAxis();
-		//bool displayCylinder();
+		bool displayCylinder();
 
 		bool usePCLViz();
 
@@ -31,7 +31,7 @@ class Parameters {
 		bool rvizCloud = true;
 		bool rvizNormals = true;
 		bool rvizCenterAxis = true;
-		//bool rvixCyliinder = true;
+		bool rvizCylinder = true;
 
 		bool pclviz = false;
 };

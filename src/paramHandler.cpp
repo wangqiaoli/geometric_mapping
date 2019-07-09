@@ -52,11 +52,11 @@ Parameters::Parameters(ros::NodeHandle& node) {
 		ROS_INFO("ERROR: displayCenterAxis set to default...");
 	}
 
-	// if(node.getParam("displayCylinder", rvizCylinder)) {
-	// 	ROS_INFO("displayCylinder set to:\t %d", rvizCylinder);
-	// } else {
-	// 	ROS_INFO("ERROR: displayCylinder set to default...");
-	// }
+	if(node.getParam("displayCylinder", rvizCylinder)) {
+		ROS_INFO("displayCylinder set to:\t %d", rvizCylinder);
+	} else {
+		ROS_INFO("ERROR: displayCylinder set to default...");
+	}
 
 	if(node.getParam("usePCLViz", pclviz)) {
 		ROS_INFO("pclviz set to:\t %d", pclviz);
@@ -93,9 +93,9 @@ bool Parameters::displayCenterAxis() {
 	return rvizCenterAxis;
 }
 
-// bool Parameters::displayCylinder() {
-// 	return rvizCylinder;
-// }
+bool Parameters::displayCylinder() {
+	return rvizCylinder;
+}
 
 bool Parameters::usePCLViz() {
 	return pclviz;

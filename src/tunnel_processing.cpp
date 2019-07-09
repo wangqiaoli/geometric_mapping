@@ -299,9 +299,9 @@ visualization_msgs::MarkerArray* rvizNormals(
 		startVec(2) = cloudVoxelFiltered->points[i].z;
 
 		//init endpoint in eigen
-		endVec(0) = normals->at(kIndices.at(0)).normal[0];
-		endVec(1) = normals->at(kIndices.at(0)).normal[1];
-		endVec(2) = normals->at(kIndices.at(0)).normal[2];
+		endVec(0) = cloudVoxelFiltered->points[i].x + .5*normals->at(kIndices.at(0)).normal[0];
+		endVec(1) = cloudVoxelFiltered->points[i].y + .5*normals->at(kIndices.at(0)).normal[1];
+		endVec(2) = cloudVoxelFiltered->points[i].z + .5*normals->at(kIndices.at(0)).normal[2];
 
 		normalVecs->markers[i] = *rvizArrow(startVec, endVec, scaleVec, colorVec, "normals", i);
 	}
@@ -343,13 +343,15 @@ visualization_msgs::MarkerArray* rvizEigens(const Eigen::Vector3f& eigenVals, co
 
 		eigenBasis->markers[i] = *rvizArrow(
 												Eigen::Vector3f::Zero(), 
-												eigenVecs.block<3,1>(0,i), //vecs by col
+												(1 + .5*eigenValNorms(i)) * eigenVecs.block<3,1>(0,i), //vecs by col
 												scale,
 												color,
 												"eigenBasis",
 												i
 											);
 	}
+
+	ROS_INFO("Eigenbasis Markers Made...");
 
 	return eigenBasis;
 }

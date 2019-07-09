@@ -10,9 +10,9 @@
   <param name="weightingFactor" value=".2" type="double"/>
 
   <param name="displayCloud" value="true" type="bool"/>
-  <param name="displayNormals" value="false" type="bool"/>
+  <param name="displayNormals" value="true" type="bool"/>
   <param name="displayCenterAxis" value="true" type="bool"/>
-  <param name="displayCylinder" value="false" type="bool"/>
+  <param name="displayCylinder" value="true" type="bool"/>
 
   <param name="usePCLViz" value="$(arg pclviz)" type="bool"/>
 

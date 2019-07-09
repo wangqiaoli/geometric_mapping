@@ -75,18 +75,6 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr kdtree(nullptr);
 	pcl::PointCloud<pcl::Normal>::Ptr cloudNormals = getNormals(params->getNeighborRadius(), cloudChopped, kdtree);
 
-  	//visualize normals
-  	if(params->usePCLViz()) {
-  		pclvizNormals(pcl_var, *viewer, cloudChopped, cloudNormals);
-  	}
-
-  	visualization_msgs::MarkerArray* normalsDisp = rvizNormals(
-  																params->getLeafSize(),
-  																cloudChopped,
-  																kdtree,
-  																cloudNormals
-  															  );
-
 	ROS_INFO("Surface normals found...");
 
 	Eigen::Vector3f* eigenVals = nullptr;
@@ -106,9 +94,13 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 
 	ROS_INFO("Center Axis found...");
 
-	visualization_msgs::MarkerArray* eigenBasis = rvizEigens(*eigenVals, *eigenVecs);
+	Eigen::VectorXf* cylinderModel = getCylinder(
+													cloudChopped,
+													cloudNormals,
+													kdtree
+												);
 
-	ROS_INFO("Center Axis Marker Made...");
+	ROS_INFO("Local Cylinder Model found...");
 
 	if(params->displayCloud()) {
 		//convert the pcl::PointCloud to ros message
@@ -119,20 +111,43 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 		cloudPub.publish(cloudROS);
 	}
 
+	//visualize normals in pcl
+  	if(params->usePCLViz()) {
+  		pclvizNormals(pcl_var, *viewer, cloudChopped, cloudNormals);
+  	}
+
 	if(params->displayNormals()) {
+	  	visualization_msgs::MarkerArray* normalsDisp = rvizNormals(
+	  																params->getLeafSize(),
+	  																cloudChopped,
+	  																kdtree,
+	  																cloudNormals
+	  															  );
+
 		//Publish the normals
 		normalsPub.publish(*normalsDisp);
 	}
 
 	if(params->displayCenterAxis()) {
+		visualization_msgs::MarkerArray* eigenBasis = rvizEigens(*eigenVals, *eigenVecs);
+
 		//Publish the center axis
 		centerAxisPub.publish(*eigenBasis);
 	}
 
-	// if(params->displayCylinder()) {
-	// 	//Publish the data
-	// 	cylinderPub.publish(*cylinderDisp);
-	// }
+	if(params->displayCylinder()) {
+		Eigen::Vector4f color(.6, 1, .65, 0);
+		visualization_msgs::Marker* cylinderDisp = rvizCylinder(
+																	params->getBoxFilterBound(),
+																	*cylinderModel,
+																	*centerAxis,
+																	color,
+																	"cylinderModel"
+																);
+
+		//Publish the data
+		cylinderPub.publish(*cylinderDisp);
+	}
 
 	ROS_INFO("Published...");
 }
