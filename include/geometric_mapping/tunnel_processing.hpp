@@ -1,6 +1,7 @@
 #ifndef TUNNEL_PROCESSING_HPP
 #define TUNNEL_PROCESSING_HPP
 
+
 //standard functions
 #include <vector>
 #include <limits>
@@ -13,22 +14,27 @@
 
 //PCL libraries
 #include <sensor_msgs/PointCloud2.h>
+
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/common/eigen.h>
+
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/voxel_grid.h>
-#include <pcl/features/normal_3d.h>
 #include <pcl/filters/extract_indices.h>
+#include <pcl/features/normal_3d.h>
+
+#include <pcl/ModelCoefficients.h>
+#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/model_types.h>
+#include <pcl/segmentation/sac_segmentation.h>
 
 //Eigen libraries
 #include <Eigen/Core>
 #include <Eigen/QR>
-
-//Project libraries
-#include "paramHandler.hpp"
+#include <Eigen/Geometry> 
 
 ////////////////////////////////////////////////////////
 //Declare Point Cloud Processing Functions
@@ -54,9 +60,9 @@ void getLocalFrame(
 				  );
 
 //Regression function
-Eigen::Vector7f* getCylinder(
-								const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud;
-								const pcl::PointCloud<pcl::Normal>::Ptr& normals;
+Eigen::VectorXf* getCylinder(
+								const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
+								const pcl::PointCloud<pcl::Normal>::Ptr& normals,
 								const pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree
 							);
 
@@ -73,7 +79,7 @@ visualization_msgs::Marker* rvizArrow(
 										const std::string& ns,
 										const int& id = 0,
 										const std::string& frame = "/velodyne"
-									  );
+									 );
 
 //Displays surface normals in rviz using VoxelGrid Filter and KD tree to free computing power
 visualization_msgs::MarkerArray* rvizNormals(
@@ -89,7 +95,7 @@ visualization_msgs::MarkerArray* rvizEigens(const Eigen::Vector3f& eigenVals, co
 //Displays regression in rviz
 visualization_msgs::Marker* rvizCylinder(
 											const double& bound,
-											const Eigen::Vector7f& cylinderCoeffs,
+											const Eigen::VectorXf& cylinderCoeffs,
 											const Eigen::Vector3f& centerAxis,
 											const Eigen::Vector4f& color,
 											const std::string& ns,

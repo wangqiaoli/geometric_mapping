@@ -13,22 +13,29 @@
 
 //PCL libraries
 #include <sensor_msgs/PointCloud2.h>
+
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/common/eigen.h>
+
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/voxel_grid.h>
-#include <pcl/features/normal_3d.h>
 #include <pcl/filters/extract_indices.h>
+#include <pcl/features/normal_3d.h>
+
+#include <pcl/ModelCoefficients.h>
+#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/model_types.h>
+#include <pcl/segmentation/sac_segmentation.h>
 
 //Eigen libraries
 #include <Eigen/Core>
 #include <Eigen/QR>
+#include <Eigen/Geometry> 
 
 //Project libraries
-#include "paramHandler.hpp"
 #include "tunnel_processing.hpp"
 
 ////////////////////////////////////////////////////////
@@ -148,13 +155,14 @@ void getLocalFrame(
 }
 
 //Regression function using RANSAC
-Eigen::Vector7f* getCylinder(
-								const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud;
-								const pcl::PointCloud<pcl::Normal>::Ptr& normals;
+Eigen::VectorXf* getCylinder(
+								const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
+								const pcl::PointCloud<pcl::Normal>::Ptr& normals,
 								const pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree
 							) {
 	//Create segmentation object 
-	pcl::SACSegmentationFromNormals<PointT, pcl::Normal> RANSAC;
+	pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> RANSAC;
+
 	// pcl::ExtractIndices<PointT> extract;
 	pcl::ModelCoefficients::Ptr cylinderCoefficients(new pcl::ModelCoefficients);
 	pcl::PointIndices::Ptr cylinderInliers(new pcl::PointIndices);
@@ -174,14 +182,14 @@ Eigen::Vector7f* getCylinder(
 	RANSAC.segment(*cylinderInliers, *cylinderCoefficients);
 
 	//convert pcl::ModelCoefficients to eigen
-	Eigen::Vector7f* cylinderCoeffs(new Eigen::Vector4f);
-	cylinderCoeffs(0) = cylinderCoefficients->value[0];
-	cylinderCoeffs(1) = cylinderCoefficients->value[1];
-	cylinderCoeffs(2) = cylinderCoefficients->value[2];
-	cylinderCoeffs(3) = cylinderCoefficients->value[3];
-	cylinderCoeffs(4) = cylinderCoefficients->value[4];
-	cylinderCoeffs(5) = cylinderCoefficients->value[5];
-	cylinderCoeffs(6) = cylinderCoefficients->value[6];
+	Eigen::VectorXf cylinderCoeffs(7);
+	cylinderCoeffs(0) = cylinderCoefficients->values[0];
+	cylinderCoeffs(1) = cylinderCoefficients->values[1];
+	cylinderCoeffs(2) = cylinderCoefficients->values[2];
+	cylinderCoeffs(3) = cylinderCoefficients->values[3];
+	cylinderCoeffs(4) = cylinderCoefficients->values[4];
+	cylinderCoeffs(5) = cylinderCoefficients->values[5];
+	cylinderCoeffs(6) = cylinderCoefficients->values[6];
 
 	// Write the cylinder inliers to disk (DEBUGGING)
 	// pcl::PointCloud<PointT>::Ptr cloudCylinder(new pcl::PointCloud<PointT>());
@@ -191,13 +199,13 @@ Eigen::Vector7f* getCylinder(
 	// extract.setNegative(false);
 	// extract.filter(*cloudCylinder);
 
-	std::cout << "\nCylinder cloud size:\n" 
-			  << cloudCylinder->points.size() 
-			  << "\ncoefficients:\n" 
-			  << cylinderCoeffs->transpose()
-			  << std::endl;
+	// std::cout << "\nCylinder cloud size:\n" 
+	// 		  << cloudCylinder->points.size() 
+	// 		  << "\ncoefficients:\n" 
+	// 		  << cylinderCoeffs->transpose()
+	// 		  << std::endl;
 
-	return cylinderCoeffs;
+	return (new Eigen::VectorXf(cylinderCoeffs));
 }
 
 ////////////////////////////////////////////////////////
@@ -349,7 +357,7 @@ visualization_msgs::MarkerArray* rvizEigens(const Eigen::Vector3f& eigenVals, co
 //Displays Regression in rviz
 visualization_msgs::Marker* rvizCylinder(
 											const double& bound,
-											const Eigen::Vector7f& cylinderCoeffs,
+											const Eigen::VectorXf& cylinderCoeffs,
 											const Eigen::Vector3f& centerAxis, 
 											const Eigen::Vector4f& color,
 											const std::string& ns,
@@ -374,12 +382,13 @@ visualization_msgs::Marker* rvizCylinder(
 	cylinder->pose.position.z = cylinderCoeffs[2];
 
 	//convert coeffs to quaternions
-	
+	Eigen::Quaternionf orientation;
+	orientation.setFromTwoVectors(Eigen::Vector3f::Zero(), centerAxis);
 
-	cylinder->pose.orientation.x = 0.0;
-	cylinder->pose.orientation.y = 0.0;
-	cylinder->pose.orientation.z = 0.0;
-	cylinder->pose.orientation.w = 1.0;
+	cylinder->pose.orientation.x = orientation.x();
+	cylinder->pose.orientation.y = orientation.y();
+	cylinder->pose.orientation.z = orientation.z();
+	cylinder->pose.orientation.w = orientation.w();
 
 	//scale coefficients (diameter, direction, height)
 	cylinder->scale.x = 2*cylinderCoeffs[6];

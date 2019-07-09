@@ -1,6 +1,7 @@
 #ifndef PCL_PRACTICE_CPP
 #define PCL_PRACTICE_CPP
 
+
 //standard functions
 #include <vector>
 #include <limits>
@@ -13,19 +14,31 @@
 
 //PCL libraries
 #include <sensor_msgs/PointCloud2.h>
+
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/common/eigen.h>
+
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/voxel_grid.h>
-#include <pcl/features/normal_3d.h>
 #include <pcl/filters/extract_indices.h>
+#include <pcl/features/normal_3d.h>
+
+#include <pcl/ModelCoefficients.h>
+#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/model_types.h>
+#include <pcl/segmentation/sac_segmentation.h>
 
 //Eigen libraries
 #include <Eigen/Core>
 #include <Eigen/QR>
+#include <Eigen/Geometry> 
+
+//Project libraries
+#include "paramHandler.hpp"
+#include "tunnel_processing.hpp"
 
 //Project libraries
 #include "paramHandler.hpp"
