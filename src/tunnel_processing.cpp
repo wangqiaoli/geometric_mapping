@@ -351,7 +351,7 @@ visualization_msgs::MarkerArray* rvizEigens(const Eigen::Vector3f& eigenVals, co
 											);
 	}
 
-	ROS_INFO("Eigenbasis Markers Made...");
+	ROS_INFO("Eigenbasis posted to rviz...");
 
 	return eigenBasis;
 }
