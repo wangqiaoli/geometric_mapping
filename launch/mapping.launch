@@ -24,6 +24,7 @@
     <remap from="cloudOutput" to="/choppedCloud"/>
     <remap from="normalsOutput" to="/surfaceNormals"/>
     <remap from="eigenBasisOutput" to="/eigenBasis"/>
+    <remap from="cylinderOutput" to="/cylinderModel"/>
   </node>
 
   	<!-- Play Bag -->

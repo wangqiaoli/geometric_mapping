@@ -192,7 +192,7 @@ int main(int argc, char** argv) {
 
 	//Create ROS publisher for cylinder
 	if(params->displayCylinder()) {
-		cylinderPub = node.advertise<visualization_msgs::Marker>("centerAxisOutput", 10);
+		cylinderPub = node.advertise<visualization_msgs::Marker>("cylinderOutput", 10);
 	}
 
 	//Calls message callbacks rapidly in seperate threads
