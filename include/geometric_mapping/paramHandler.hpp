@@ -1,16 +1,23 @@
 #ifndef PARAMHANDLER_HPP
 #define PARAMHANDLER_HPP
 
+//Standard libs
+#include <cstdlib>
+
 //Declare ROS c++ library
 #include <ros/ros.h>
 #include <ros/console.h>
+
+//Eigen libraries
+#include <Eigen/Core>
 
 //Parameter Handler Class
 class Parameters {
 	public:
 		Parameters(ros::NodeHandle& node);
 
-		double getBoxFilterBound();
+		int getWindowSize();
+		Eigen::Array3f* getBoxFilterBounds();
 		double getLeafSize();
 		double getNeighborRadius(); 
 		double getWeightingFactor();
@@ -23,7 +30,8 @@ class Parameters {
 		bool usePCLViz();
 
 	private:
-		double boxFilterBound = 5.0;
+		int windowSize = 10;
+		Eigen::Array3f* boxFilterBounds;
 		double leafSize = .1;
 		double neighborRadius = .03;
 		double weightingFactor = .2;

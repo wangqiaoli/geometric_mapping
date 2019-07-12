@@ -3,8 +3,12 @@
   <arg name="rviz" default="true"/>
   <arg name="pclviz" default="false"/>
 
+  <arg name="registeredCloud" default="/velodyne_cloud_registered"/>
+  <arg name="velodyneCloud" default="/velodyne_points"/>
+
   <!-- Parameters -->
-  <param name="boxFilterBound" value="5.0" type="double"/>
+  <param name="windowSize" value="10" type="int"/>
+  <param name="boxFilterBoundXYZ" value="5.0 5.0 5.0" type="string"/>
   <param name="voxelGridLeafSize" value="0.5" type="double"/>
   <param name="neighborRadius" value="0.5" type="double"/>
   <param name="weightingFactor" value=".2" type="double"/>
@@ -12,14 +16,14 @@
   <param name="displayCloud" value="true" type="bool"/>
   <param name="displayNormals" value="true" type="bool"/>
   <param name="displayCenterAxis" value="true" type="bool"/>
-  <param name="displayCylinder" value="true" type="bool"/>
+  <param name="displayCylinder" value="false" type="bool"/>
 
   <param name="usePCLViz" value="$(arg pclviz)" type="bool"/>
 
 	<!-- Publish Point Cloud From Bag -->
 	<node pkg="geometric_mapping" type="geometric_mapping_node" name="geometric_mapping_node" output="screen">
     <!-- Remapping -->
-    <remap from="input" to="/velodyne_points"/>
+    <remap from="input" to="$(arg registeredCloud)"/>
 
     <remap from="cloudOutput" to="/choppedCloud"/>
     <remap from="normalsOutput" to="/surfaceNormals"/>

@@ -1,20 +1,43 @@
 #ifndef PARAMHANDLER_CPP
 #define PARAMHANDLER_CPP
 
+//Standard libs
+#include <cstdlib>
+
 //Declare ROS c++ library
 #include <ros/ros.h>
 #include <ros/console.h>
+
+//Eigen libraries
+#include <Eigen/Core>
 
 //.h File
 #include "paramHandler.hpp"
 
 //Deals with the parameter data
 Parameters::Parameters(ros::NodeHandle& node) {
-	if(node.getParam("boxFilterBound", boxFilterBound)) {
-		ROS_INFO("boxFilterBound set to:\t %f", boxFilterBound);
+	if(node.getParam("windowSize", windowSize)) {
+		ROS_INFO("windowSize set to:\t %f", windowSize);
 	} else {
+		ROS_INFO("ERROR: windowSize set to default...");
+	}
+
+	std::string bounds;
+	Eigen::Array3f boundsVector;
+	if(node.getParam("boxFilterBound", bounds)) {
+		char* cbounds = new char[bounds.length()+1];
+		std::strcpy(cbounds, bounds.c_str());
+		char* pend;
+		boundsVector = Eigen::Array3f(std::strtof(cbounds, &pend), std::strtof(pend, &pend), std::strtof(pend, nullptr));
+
+		ROS_INFO("boxFilterBound set to:\t %f, %f, %f", boundsVector(0), boundsVector(1), boundsVector(2));
+	} else {
+		boundsVector = Eigen::Array3f(2.0, 5.0, 10.0);
+
 		ROS_INFO("ERROR: boxFilterBound set to default...");
 	}
+
+	boxFilterBounds = new Eigen::Array3f(boundsVector);
 
 	if(node.getParam("voxelGridLeafSize", leafSize)) {
 		ROS_INFO("leafSize set to:\t %f", leafSize);
@@ -65,8 +88,12 @@ Parameters::Parameters(ros::NodeHandle& node) {
 	}
 }
 
-double Parameters::getBoxFilterBound() {
-	return boxFilterBound;
+int Parameters::getWindowSize() {
+	return windowSize;
+}
+
+Eigen::Array3f* Parameters::getBoxFilterBounds() {
+	return boxFilterBounds;
 }
 
 double Parameters::getLeafSize() {

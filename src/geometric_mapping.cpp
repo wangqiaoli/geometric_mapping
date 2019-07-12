@@ -63,13 +63,14 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 	//Convert to PCL
 	pcl::fromROSMsg(*input, *cloud);
 
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudChopped = chopCloud(params->getBoxFilterBound(), cloud);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudChopped = chopCloud(*params->getBoxFilterBounds(), cloud);
 
 	ROS_INFO("Box filter applied...");
 
 	//Find Surface Normals
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr kdtree(nullptr);
-	pcl::PointCloud<pcl::Normal>::Ptr cloudNormals = getNormals(params->getNeighborRadius(), cloudChopped, kdtree);
+	std::vector<int> indicesMap;
+	pcl::PointCloud<pcl::Normal>::Ptr cloudNormals = getNormals(params->getNeighborRadius(), cloudChopped, kdtree, indicesMap);
 
 	ROS_INFO("Surface normals found...");
 
@@ -92,8 +93,7 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 
 	Eigen::VectorXf* cylinderModel = getCylinder(
 													cloudChopped,
-													cloudNormals,
-													kdtree
+													cloudNormals
 												);
 
 	ROS_INFO("Local Cylinder Model found...");
@@ -119,6 +119,7 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 	  																params->getLeafSize(),
 	  																cloudChopped,
 	  																kdtree,
+	  																indicesMap,
 	  																cloudNormals
 	  															  );
 
@@ -136,7 +137,7 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 	if(params->displayCylinder()) {
 		Eigen::Vector4f color(.6, 1, .65, 0);
 		visualization_msgs::Marker* cylinderDisp = rvizCylinder(
-																	params->getBoxFilterBound(),
+																	*params->getBoxFilterBounds(),
 																	*cylinderModel,
 																	*centerAxis,
 																	color,

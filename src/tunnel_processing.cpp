@@ -42,13 +42,24 @@
 //Declare Point Cloud Processing Functions
 ////////////////////////////////////////////////////////
 
+//Creates Registered cloud from time series data
+pcl::PointCloud<pcl::PointXYZ>::Ptr registerCloud(const int& windowSize ,const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
+	//init registered cloud
+	pcl::PointCloud<pcl::PointXYZ>::Ptr registeredCloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+	//concatinate registered cloud into single local cloud using affine transformations
+
+
+	return registeredCloud;
+}
+
 //Chops point cloud at each timestep
-pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(const double& bound ,const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
+pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(const Eigen::Array3f& bounds ,const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
 	//Apply Box Filter
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudChopped(new pcl::PointCloud<pcl::PointXYZ>);
 	pcl::CropBox<pcl::PointXYZ> boxFilter;
-	boxFilter.setMin(Eigen::Vector4f(-bound, -bound, -bound, 1.0));
-	boxFilter.setMax(Eigen::Vector4f(bound, bound, bound, 1.0));
+	boxFilter.setMin(Eigen::Vector4f(-bounds(0), -bounds(1), -bounds(2), 1.0));
+	boxFilter.setMax(Eigen::Vector4f(bounds(0), bounds(1), bounds(2), 1.0));
 	boxFilter.setInputCloud(cloud);
 	boxFilter.filter(*cloudChopped);
 
@@ -59,27 +70,28 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(const double& bound ,const pcl::Po
 pcl::PointCloud<pcl::Normal>::Ptr getNormals(
 												const double& neighborRadius, 
 												pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, 
-												pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree
+												pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree,
+												std::vector<int>& indicesMap
 											) {
 	//Create the normal estimation class
-  	pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> find_normals;
-  	find_normals.setInputCloud(cloud);
+  	pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> findNormals;
+  	findNormals.setInputCloud(cloud);
 
   	//create KD tree of the point cloud
   	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
-  	find_normals.setSearchMethod(tree);
+  	findNormals.setSearchMethod(tree);
 
   	kdtree = tree;
 
   	//Find normals using nearest neighbor parameter
   	pcl::PointCloud<pcl::Normal>::Ptr cloud_normals(new pcl::PointCloud<pcl::Normal>);
-  	find_normals.setRadiusSearch(neighborRadius);
-  	find_normals.compute(*cloud_normals);
+  	findNormals.setRadiusSearch(neighborRadius);
+  	findNormals.compute(*cloud_normals);
 
   	// std::cout << cloud_normals->at(11) << std::endl;
   	// std::cout << "Cloud size is:" << cloud_normals->points.size() << std::endl;
-  	pcl::PointIndices::Ptr indices(new pcl::PointIndices);
-  	pcl::removeNaNNormalsFromPointCloud(*cloud_normals, *cloud_normals, indices->indices);
+  	pcl::PointIndices::Ptr indicesBanned(new pcl::PointIndices);
+  	pcl::removeNaNNormalsFromPointCloud(*cloud_normals, *cloud_normals, indicesBanned->indices);
   	// std::cout << "New cloud size is:" << cloud_normals->points.size() << std::endl;
   	// std::cout << cloud_normals->at(11) << std::endl << std::endl;
 
@@ -87,10 +99,28 @@ pcl::PointCloud<pcl::Normal>::Ptr getNormals(
   	//could use this to display normals at each voxel
   	pcl::ExtractIndices<pcl::PointXYZ> extractIndices;
   	extractIndices.setInputCloud(cloud);
-  	extractIndices.setIndices(indices);
-  	//extractIndices.setNegative(true);
+  	extractIndices.setIndices(indicesBanned);
   	extractIndices.filter(*cloud);
   	// std::cout << "Cloud size is " << point_cloud->points.size() << std::endl;
+
+  	//make indices map
+  	int banCounter = 0;
+  	for(int i = 0 ; i < cloud->points.size(); i++) {
+  		bool banned = false;
+  		for(int j = i; j < indicesBanned->indices.size(); j++) { //j=i assumes ordered indices
+  			if(i == indicesBanned->indices.at(j)) {
+  				banned  = true;
+  				continue;
+  			}
+		}
+
+  		if(!banned) {
+  			indicesMap.push_back(banCounter);
+  		} else {
+  			indicesMap.push_back(-1);
+  			banCounter++;
+  		}
+  	}
 
   	return cloud_normals;
 }
@@ -157,8 +187,7 @@ void getLocalFrame(
 //Regression function using RANSAC
 Eigen::VectorXf* getCylinder(
 								const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
-								const pcl::PointCloud<pcl::Normal>::Ptr& normals,
-								const pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree
+								const pcl::PointCloud<pcl::Normal>::Ptr& normals
 							) {
 	//Create segmentation object 
 	pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> RANSAC;
@@ -264,6 +293,7 @@ visualization_msgs::MarkerArray* rvizNormals(
 												const double& leafSize, 
 												const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, 
 												const pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree,
+												const std::vector<int>& indicesMap,
 												const pcl::PointCloud<pcl::Normal>::Ptr& normals
 											) {
 	//Implement VoxelGrid Filter
@@ -280,6 +310,9 @@ visualization_msgs::MarkerArray* rvizNormals(
 	visualization_msgs::MarkerArray* normalVecs(new visualization_msgs::MarkerArray);
 	normalVecs->markers.resize(cloudVoxelFiltered->points.size());
 
+	std::cout << "Size\t" << cloudVoxelFiltered->points.size() << std::endl;
+	std::cout << "SizeN\t" << normals->points.size() << std::endl;
+
 	Eigen::Vector3f startVec = Eigen::Vector3f::Zero();
 	Eigen::Vector3f endVec = Eigen::Vector3f::Zero();
 	Eigen::Vector3f scaleVec(0.025, 0.075, 0.0625);
@@ -287,23 +320,32 @@ visualization_msgs::MarkerArray* rvizNormals(
 
 	int KNN = 1;
 	int kdint = 0; //garbage
-	std::vector<int> kIndices; //garbage
+	std::vector<int> kIndices;
 	std::vector<float> kDists; //garbage
 	for(int i = 0; i < cloudVoxelFiltered->points.size(); i++) {
 		//Use KD tree to build cloud of nearest neighbors to KNN cloud
 		kdint = kdtree->nearestKSearch(cloudVoxelFiltered->points[i], KNN, kIndices, kDists);
 
-		//init start point in eigen
-		startVec(0) = cloudVoxelFiltered->points[i].x;
-		startVec(1) = cloudVoxelFiltered->points[i].y;
-		startVec(2) = cloudVoxelFiltered->points[i].z;
+		std::cout << "DEBUG\t:" << i << std::endl;
 
-		//init endpoint in eigen
-		endVec(0) = cloudVoxelFiltered->points[i].x + .5*normals->at(kIndices.at(0)).normal[0];
-		endVec(1) = cloudVoxelFiltered->points[i].y + .5*normals->at(kIndices.at(0)).normal[1];
-		endVec(2) = cloudVoxelFiltered->points[i].z + .5*normals->at(kIndices.at(0)).normal[2];
+		if(kdint != 0 && indicesMap.at(i) != -1) {
+			//init start point in eigen
+			startVec(0) = cloudVoxelFiltered->points[i].x;
+			startVec(1) = cloudVoxelFiltered->points[i].y;
+			startVec(2) = cloudVoxelFiltered->points[i].z;
 
-		normalVecs->markers[i] = *rvizArrow(startVec, endVec, scaleVec, colorVec, "normals", i);
+			std::cout << "DEBUG2\t:" << kdint << std::endl;
+			std::cout << "DEBUG2\t:" << kIndices.at(0) << std::endl;
+
+			//init endpoint in eigen
+			endVec(0) = cloudVoxelFiltered->points[i].x + .5*normals->at(kIndices.at(0) - indicesMap.at(i)).normal[0];
+			endVec(1) = cloudVoxelFiltered->points[i].y + .5*normals->at(kIndices.at(0) - indicesMap.at(i)).normal[1];
+			endVec(2) = cloudVoxelFiltered->points[i].z + .5*normals->at(kIndices.at(0) - indicesMap.at(i)).normal[2];
+
+			std::cout << "DEBUG3\t:" << std::endl;
+
+			normalVecs->markers[i] = *rvizArrow(startVec, endVec, scaleVec, colorVec, "normals", i);
+		}
 	}
 
 	ROS_INFO("Normals posted to rviz...");
@@ -358,7 +400,7 @@ visualization_msgs::MarkerArray* rvizEigens(const Eigen::Vector3f& eigenVals, co
 
 //Displays Regression in rviz
 visualization_msgs::Marker* rvizCylinder(
-											const double& bound,
+											const Eigen::Array3f& bounds,
 											const Eigen::VectorXf& cylinderCoeffs,
 											const Eigen::Vector3f& centerAxis, 
 											const Eigen::Vector4f& color,
@@ -395,7 +437,7 @@ visualization_msgs::Marker* rvizCylinder(
 	//scale coefficients (diameter, direction, height)
 	cylinder->scale.x = 2*cylinderCoeffs[6];
 	cylinder->scale.y = 2*cylinderCoeffs[6];
-	cylinder->scale.z = bound;
+	cylinder->scale.z = bounds(2);
 
 	//set normal colors
 	cylinder->color.a = color(0);

@@ -40,14 +40,18 @@
 //Declare Point Cloud Processing Functions
 ////////////////////////////////////////////////////////
 
+//Creates Registered cloud from time series data
+pcl::PointCloud<pcl::PointXYZ>::Ptr registerCloud(const int& windowSize ,const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud);
+
 //Chops point cloud at each timestep
-pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(const double& bound ,const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud);
+pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(const Eigen::Array3f& bounds ,const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud);
 
 //Calculates and returns surface normals of point cloud and removes NAN points from the cloud
 pcl::PointCloud<pcl::Normal>::Ptr getNormals(
 												const double& neighborRadius, 
 												pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
-												pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree //set to dynamic memory in function
+												pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree, //set to dynamic memory in function
+												std::vector<int>& indicesMap
 											);
 
 //Calculates center axis of the tunnel using the eigenvalues and eigenvectors of the normal cloud
@@ -62,9 +66,11 @@ void getLocalFrame(
 //Regression function
 Eigen::VectorXf* getCylinder(
 								const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
-								const pcl::PointCloud<pcl::Normal>::Ptr& normals,
-								const pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree
+								const pcl::PointCloud<pcl::Normal>::Ptr& normals
 							);
+
+//state machine for detecting walls, orientation, intersections, and tunnels
+
 
 ////////////////////////////////////////////////////////
 //Declare Visualization Functions
@@ -86,6 +92,7 @@ visualization_msgs::MarkerArray* rvizNormals(
 												const double& leafSize, 
 												const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, 
 												const pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree,
+												const std::vector<int>& indicesMap,
 												const pcl::PointCloud<pcl::Normal>::Ptr& normals
 											);
 
@@ -94,7 +101,7 @@ visualization_msgs::MarkerArray* rvizEigens(const Eigen::Vector3f& eigenVals, co
 
 //Displays regression in rviz
 visualization_msgs::Marker* rvizCylinder(
-											const double& bound,
+											const Eigen::Array3f& bounds,
 											const Eigen::VectorXf& cylinderCoeffs,
 											const Eigen::Vector3f& centerAxis,
 											const Eigen::Vector4f& color,
