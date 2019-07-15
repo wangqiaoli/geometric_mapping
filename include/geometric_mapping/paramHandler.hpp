@@ -21,6 +21,11 @@ class Parameters {
 		double getLeafSize();
 		double getNeighborRadius(); 
 		double getWeightingFactor();
+
+		double getNormalDistWeight(); 
+  		int getMaxIterations(); 
+  		double getDistThreshold(); 
+  		Eigen::Array2f* getRadiusLimits();
 		
 		bool displayCloud();
 		bool displayNormals();
@@ -36,12 +41,17 @@ class Parameters {
 		double neighborRadius = .03;
 		double weightingFactor = .2;
 
+		double normalDistWeight = 0.1;
+  		int maxIterations = 10000;
+  		double distThreshold = 0.05;
+  		Eigen::Array2f* radiusLimits;
+
 		bool rvizCloud = true;
 		bool rvizNormals = true;
 		bool rvizCenterAxis = true;
 		bool rvizCylinder = true;
 
-		bool pclviz = false;
+		bool pclviz = false; 
 };
 
 #endif

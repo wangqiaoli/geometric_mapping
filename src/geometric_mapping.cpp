@@ -4,12 +4,14 @@
 
 //standard functions
 #include <vector>
+#include <deque> 
 #include <limits>
 #include <cmath>
 
 //Declare ROS c++ library
 #include <ros/ros.h>
 #include <ros/console.h>
+#include <nav_msgs/Odometry.h>
 #include <visualization_msgs/MarkerArray.h>
 
 //PCL libraries
@@ -40,6 +42,9 @@
 #include "paramHandler.hpp"
 #include "tunnel_processing.hpp"
 
+//Creates sliding window for registered point cloud
+Window* window = nullptr;
+
 //Creates parameter object
 Parameters* params = nullptr;
 
@@ -53,7 +58,7 @@ ros::Publisher cylinderPub;
 int pcl_var = 0;
 pcl::visualization::PCLVisualizer* viewer = nullptr;
 
-//Define Publisher function
+//Define Cloud Publisher function
 void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 	ROS_INFO("Callback started...");
 
@@ -62,6 +67,14 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 
 	//Convert to PCL
 	pcl::fromROSMsg(*input, *cloud);
+
+	//add cloud to window
+	window.cloudWindow.push_front(*cloud);
+
+	//update sliding window if needed
+	if(window->isRegistered) {
+		cloud = registeredCloudUpdate(*window, *cloud);
+	}
 
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudChopped = chopCloud(*params->getBoxFilterBounds(), cloud);
 
@@ -151,6 +164,12 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 	ROS_INFO("Callback ended...\n\n");
 }
 
+//Define Cloud Publisher function
+void odometry_cb(const nav_msgs::Odometry odometry) {
+	//push new odometry onto window
+	window->odometryWindow.push_front(odometry);
+}
+
 //main function creates subscriber for the published point cloud
 int main(int argc, char** argv) {
 	//Initialize ROS cloud topic
@@ -163,6 +182,15 @@ int main(int argc, char** argv) {
 
 	ROS_INFO("Launched geometric_mapping_node...");
 
+	//initialize sliding window
+	if(params->getWindowSize() > 1) {
+		window = new Window;
+		window->isRegistered = true;
+		window->size = params->getWindowSize();
+	}
+
+	ROS_INFO_STREAM("Created " << (window->isRegistered) ? "sliding window..." : "cloud...");
+
 	//inits PCL viewer
 	if(params->usePCLViz()) {
 		pcl::visualization::PCLVisualizer pclViewer;
@@ -170,7 +198,10 @@ int main(int argc, char** argv) {
 	}
 
 	//Create subscriber for the input pointcloud
-	ros::Subscriber sub = node.subscribe("input", 1, cloud_cb);
+	ros::Subscriber cloudSub = node.subscribe("inputCloud", 1, cloud_cb);
+
+	//Create subscriber for the input odometry
+	ros::Subscriber odometrySub = node.subscribe("inputOdometry", 1, odometry_cb);
 
 	//Create ROS publisher for box filtered point cloud
 	if(params->displayCloud()) {
@@ -194,6 +225,10 @@ int main(int argc, char** argv) {
 
 	//Calls message callbacks rapidly in seperate threads
 	ros::spin();
+
+	//deletes the window
+	delete window;
+	window = nullptr;
 }
 
 #endif

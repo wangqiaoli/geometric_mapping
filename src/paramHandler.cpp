@@ -17,7 +17,7 @@
 //Deals with the parameter data
 Parameters::Parameters(ros::NodeHandle& node) {
 	if(node.getParam("windowSize", windowSize)) {
-		ROS_INFO("windowSize set to:\t %f", windowSize);
+		ROS_INFO("windowSize set to:\t %d", windowSize);
 	} else {
 		ROS_INFO("ERROR: windowSize set to default...");
 	}
@@ -56,6 +56,41 @@ Parameters::Parameters(ros::NodeHandle& node) {
 	} else {
 		ROS_INFO("ERROR: weightingFactor set to default...");
 	}
+
+	if(node.getParam("normalDistWeight", normalDistWeight)) {
+		ROS_INFO("normalDistWeight set to:\t %f", normalDistWeight);
+	} else {
+		ROS_INFO("ERROR: normalDistWeight set to default...");
+	}
+
+	if(node.getParam("maxIterations", maxIterations)) {
+		ROS_INFO("maxIterations set to:\t %d", maxIterations);
+	} else {
+		ROS_INFO("ERROR: maxIterations set to default...");
+	}
+
+	if(node.getParam("distThreshold", distThreshold)) {
+		ROS_INFO("distThreshold set to:\t %f", distThreshold);
+	} else {
+		ROS_INFO("ERROR: distThreshold set to default...");
+	}
+
+	std::string radiuslimits;
+	Eigen::Array2f radiusLimitsVector;
+	if(node.getParam("radiusLimits", radiuslimits)) {
+		char* cbounds = new char[radiuslimits.length()+1];
+		std::strcpy(cbounds, radiuslimits.c_str());
+		char* pend;
+		radiusLimitsVector = Eigen::Array2f(std::strtof(cbounds, &pend), std::strtof(pend, nullptr));
+
+		ROS_INFO("radiusLimits set to:\t %f, %f", radiusLimitsVector(0), radiusLimitsVector(1));
+	} else {
+		radiusLimitsVector = Eigen::Array2f(0.0, 15.0);
+
+		ROS_INFO("ERROR: radiusLimits set to default...");
+	}
+
+	radiusLimits = new Eigen::Array2f(radiusLimitsVector);
 
 	if(node.getParam("displayCloud", rvizCloud)) {
 		ROS_INFO("displayCloud set to:\t %d", rvizCloud);
@@ -107,6 +142,22 @@ double Parameters::getNeighborRadius() {
 double Parameters::getWeightingFactor() {
 	return weightingFactor;
 }	
+
+double Parameters::getNormalDistWeight() {
+	return normalDistWeight;
+} 
+
+int Parameters::getMaxIterations() {
+	return maxIterations;
+} 
+
+double Parameters::getDistThreshold() {
+	return distThreshold;
+} 
+
+Eigen::Array2f* Parameters::getRadiusLimits() {
+	return radiusLimits;
+}
 
 bool Parameters::displayCloud() {
 	return rvizCloud;

@@ -3,12 +3,14 @@
 
 //standard functions
 #include <vector>
+#include <deque> 
 #include <limits>
 #include <cmath>
 
 //Declare ROS c++ library
 #include <ros/ros.h>
 #include <ros/console.h>
+#include <nav_msgs/Odometry.h>
 #include <visualization_msgs/MarkerArray.h>
 
 //PCL libraries
@@ -33,7 +35,7 @@
 //Eigen libraries
 #include <Eigen/Core>
 #include <Eigen/QR>
-#include <Eigen/Geometry> 
+#include <Eigen/Geometry>
 
 //Project libraries
 #include "tunnel_processing.hpp"
@@ -43,14 +45,70 @@
 ////////////////////////////////////////////////////////
 
 //Creates Registered cloud from time series data
-pcl::PointCloud<pcl::PointXYZ>::Ptr registerCloud(const int& windowSize ,const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
-	//init registered cloud
-	pcl::PointCloud<pcl::PointXYZ>::Ptr registeredCloud(new pcl::PointCloud<pcl::PointXYZ>);
+pcl::PointCloud<pcl::PointXYZ>::Ptr registeredCloudUpdate(Window& window, const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
+	if(window.isRegistered) {
+		//add cloud to window
+		window.cloudWindow.push_front(*cloud);
 
-	//concatinate registered cloud into single local cloud using affine transformations
+		//init registered cloud
+		pcl::PointCloud<pcl::PointXYZ>::Ptr registeredCloud(new pcl::PointCloud<pcl::PointXYZ>(*cloud));
 
+		//concatinate registered cloud into single local cloud using affine transformations
+		Eigen::Vector3f endPose(
+									window.odometryWindow[0].pose.pose.position.x,
+									window.odometryWindow[0].pose.pose.position.y,
+									window.odometryWindow[0].pose.pose.position.z
+							   );
 
-	return registeredCloud;
+		Eigen::Quaternionf endQuat(
+									window.odometryWindow[0].pose.pose.orientation.w,
+									window.odometryWindow[0].pose.pose.orientation.x,
+									window.odometryWindow[0].pose.pose.orientation.y,
+									window.odometryWindow[0].pose.pose.orientation.z
+								  );
+
+		//DO I NEED TO USE TF2?????
+
+		ROS_INFO("CURRENT WINDOW SIZE: %d", window.size);
+
+		for(int i = 1; i < window.size; i++) {
+			//initialize new pose and orientation from the odometry window
+			Eigen::Vector3f startPose(
+										window.odometryWindow[i].pose.pose.position.x,
+										window.odometryWindow[i].pose.pose.position.y,
+										window.odometryWindow[i].pose.pose.position.z
+							   	    );
+
+			Eigen::Quaternionf startQuat(
+										window.odometryWindow[i].pose.pose.orientation.w,
+										window.odometryWindow[i].pose.pose.orientation.x,
+										window.odometryWindow[i].pose.pose.orientation.y,
+										window.odometryWindow[i].pose.pose.orientation.z
+								  	  );
+
+			//find difference in pose and orientation relative to the start frame
+			Eigen::Quaternionf diffQ = endQuat.inverse() * startQuat;
+			Eigen::Vector3f diffV = endPose - startPose;
+
+			//pose in new coordinate system
+			Eigen::Vector3f newDiffPose = diffV.transpose() * endQuat.toRotationMatrix();
+
+			//Create affine transformation from start (previous) frame to end (current) frame
+			Eigen::Affine3d affine = Eigen::Affine3d::Identity();
+			affine.translation() << newDiffPose[0], newDiffPose[1], newDiffPose[2]; //add pose in end frame
+			affine.rotate(diffQ.toRotationMatrix()); //add rotation from start frame to end frame
+
+			pcl::PointCloud<pcl::PointXYZ> transformedCloud;
+			pcl::transformPointCloud(*window[i], transformedCloud, affine);
+
+			//concatinates current cloud and all previous clouds processed so far
+			*registeredCloud += transformedCloud;
+		}
+
+		return registeredCloud;
+	} else {
+		return cloud;
+	}
 }
 
 //Chops point cloud at each timestep
@@ -107,7 +165,7 @@ pcl::PointCloud<pcl::Normal>::Ptr getNormals(
   	int banCounter = 0;
   	for(int i = 0 ; i < cloud->points.size(); i++) {
   		bool banned = false;
-  		for(int j = i; j < indicesBanned->indices.size(); j++) { //j=i assumes ordered indices
+  		for(int j = i; j < indicesBanned->indices.size(); j++) { //j=i assumes ordered indices and cloud
   			if(i == indicesBanned->indices.at(j)) {
   				banned  = true;
   				continue;
