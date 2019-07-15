@@ -45,69 +45,67 @@
 ////////////////////////////////////////////////////////
 
 //Creates Registered cloud from time series data
-pcl::PointCloud<pcl::PointXYZ>::Ptr registeredCloudUpdate(Window& window, const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
-	if(window.isRegistered) {
+void registeredCloudUpdate(Window*& window, pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
+	if(window->isRegistered) {
 		//add cloud to window
-		window.cloudWindow.push_front(*cloud);
+		window->cloudWindow.push_front(*cloud);
 
 		//init registered cloud
 		pcl::PointCloud<pcl::PointXYZ>::Ptr registeredCloud(new pcl::PointCloud<pcl::PointXYZ>(*cloud));
 
 		//concatinate registered cloud into single local cloud using affine transformations
 		Eigen::Vector3f endPose(
-									window.odometryWindow[0].pose.pose.position.x,
-									window.odometryWindow[0].pose.pose.position.y,
-									window.odometryWindow[0].pose.pose.position.z
+									window->odometryWindow[0].pose.pose.position.x,
+									window->odometryWindow[0].pose.pose.position.y,
+									window->odometryWindow[0].pose.pose.position.z
 							   );
 
 		Eigen::Quaternionf endQuat(
-									window.odometryWindow[0].pose.pose.orientation.w,
-									window.odometryWindow[0].pose.pose.orientation.x,
-									window.odometryWindow[0].pose.pose.orientation.y,
-									window.odometryWindow[0].pose.pose.orientation.z
+									window->odometryWindow[0].pose.pose.orientation.w,
+									window->odometryWindow[0].pose.pose.orientation.x,
+									window->odometryWindow[0].pose.pose.orientation.y,
+									window->odometryWindow[0].pose.pose.orientation.z
 								  );
 
 		//DO I NEED TO USE TF2?????
 
-		ROS_INFO("CURRENT WINDOW SIZE: %d", window.size);
+		ROS_INFO("CURRENT WINDOW SIZE: %d", window->size);
 
-		for(int i = 1; i < window.size; i++) {
+		for(int i = 1; i < window->size; i++) {
 			//initialize new pose and orientation from the odometry window
 			Eigen::Vector3f startPose(
-										window.odometryWindow[i].pose.pose.position.x,
-										window.odometryWindow[i].pose.pose.position.y,
-										window.odometryWindow[i].pose.pose.position.z
+										window->odometryWindow[i].pose.pose.position.x,
+										window->odometryWindow[i].pose.pose.position.y,
+										window->odometryWindow[i].pose.pose.position.z
 							   	    );
 
 			Eigen::Quaternionf startQuat(
-										window.odometryWindow[i].pose.pose.orientation.w,
-										window.odometryWindow[i].pose.pose.orientation.x,
-										window.odometryWindow[i].pose.pose.orientation.y,
-										window.odometryWindow[i].pose.pose.orientation.z
+										window->odometryWindow[i].pose.pose.orientation.w,
+										window->odometryWindow[i].pose.pose.orientation.x,
+										window->odometryWindow[i].pose.pose.orientation.y,
+										window->odometryWindow[i].pose.pose.orientation.z
 								  	  );
 
 			//find difference in pose and orientation relative to the start frame
-			Eigen::Quaternionf diffQ = endQuat.inverse() * startQuat;
-			Eigen::Vector3f diffV = endPose - startPose;
+			Eigen::Quaternionf diffQuat = endQuat.inverse() * startQuat;
+			Eigen::Vector3f diffPose = endPose - startPose;
 
 			//pose in new coordinate system
-			Eigen::Vector3f newDiffPose = diffV.transpose() * endQuat.toRotationMatrix();
+			Eigen::Vector3f newDiffPose = diffPose.transpose() * endQuat.toRotationMatrix();
 
 			//Create affine transformation from start (previous) frame to end (current) frame
-			Eigen::Affine3d affine = Eigen::Affine3d::Identity();
+			Eigen::Affine3f affine = Eigen::Affine3f::Identity();
 			affine.translation() << newDiffPose[0], newDiffPose[1], newDiffPose[2]; //add pose in end frame
-			affine.rotate(diffQ.toRotationMatrix()); //add rotation from start frame to end frame
+			affine.rotate(diffQuat.toRotationMatrix()); //add rotation from start frame to end frame
 
 			pcl::PointCloud<pcl::PointXYZ> transformedCloud;
-			pcl::transformPointCloud(*window[i], transformedCloud, affine);
+			pcl::transformPointCloud(window->cloudWindow[i], transformedCloud, affine);
 
 			//concatinates current cloud and all previous clouds processed so far
 			*registeredCloud += transformedCloud;
 		}
 
-		return registeredCloud;
-	} else {
-		return cloud;
+		cloud = registeredCloud;
 	}
 }
 

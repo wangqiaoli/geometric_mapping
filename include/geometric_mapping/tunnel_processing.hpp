@@ -51,18 +51,18 @@
 
 //for sliding window in registered point clouds
 struct Window {
-	const bool isRegistered;
-	const int size;
+	bool isRegistered = true;
+	int size = 10;
 	std::deque<pcl::PointCloud<pcl::PointXYZ>> cloudWindow;
 	std::deque<nav_msgs::Odometry> odometryWindow;
-}
+};
 
 ////////////////////////////////////////////////////////
 //Declare Point Cloud Processing Functions
 ////////////////////////////////////////////////////////
 
 //Creates Registered cloud from time series data
-pcl::PointCloud<pcl::PointXYZ>::Ptr registeredCloudUpdate(Window*& window, const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud);
+void registeredCloudUpdate(Window*& window, pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud);
 
 //Chops point cloud at each timestep
 pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(const Eigen::Array3f& bounds, const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud);

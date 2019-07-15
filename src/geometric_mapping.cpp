@@ -68,12 +68,9 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 	//Convert to PCL
 	pcl::fromROSMsg(*input, *cloud);
 
-	//add cloud to window
-	window.cloudWindow.push_front(*cloud);
-
 	//update sliding window if needed
 	if(window->isRegistered) {
-		cloud = registeredCloudUpdate(*window, *cloud);
+		registeredCloudUpdate(window, cloud);
 	}
 
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudChopped = chopCloud(*params->getBoxFilterBounds(), cloud);
