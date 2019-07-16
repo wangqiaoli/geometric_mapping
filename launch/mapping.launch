@@ -6,8 +6,8 @@
   <arg name="registeredCloud" default="/velodyne_cloud_registered"/>
   <arg name="velodyneCloud" default="/velodyne_points"/>
 
-  <arg name="registered" default="10"/>
-  <arg name="velodyne" default="1"/>
+<!--   <arg name="registered" default="10"/>
+  <arg name="velodyne" default="1"/> -->
 
   <!-- Parameters -->
   <param name="windowSize" value="10" type="int"/>
@@ -33,7 +33,7 @@
 	<node pkg="geometric_mapping" type="geometric_mapping_node" name="geometric_mapping_node" output="screen">
     <!-- Remapping -->
     <remap from="inputCloud" to="$(arg registeredCloud)"/>
-    <remap from="inputOdometry" to=""/>
+    <remap from="inputOdometry" to="/msf_core/odometry"/>
 
     <remap from="cloudOutput" to="/choppedCloud"/>
     <remap from="normalsOutput" to="/surfaceNormals"/>

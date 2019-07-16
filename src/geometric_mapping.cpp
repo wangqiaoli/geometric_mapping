@@ -42,6 +42,10 @@
 #include "paramHandler.hpp"
 #include "tunnel_processing.hpp"
 
+////////////////////////////////////////////////////////
+//Declare Global Variables
+////////////////////////////////////////////////////////
+
 //Creates sliding window for registered point cloud
 Window* window = nullptr;
 
@@ -51,12 +55,93 @@ Parameters* params = nullptr;
 //Create ROS publisher objects
 ros::Publisher cloudPub;
 ros::Publisher normalsPub;
-ros::Publisher centerAxisPub;
+ros::Publisher eigenBasisPub;
 ros::Publisher cylinderPub;
 
 //create PCL visualizer object
 int pcl_var = 0;
 pcl::visualization::PCLVisualizer* viewer = nullptr;
+
+////////////////////////////////////////////////////////
+//Declare Callback Functions
+////////////////////////////////////////////////////////
+
+//Define Cloud Publisher function
+void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input);
+
+//Define Odometry Publisher function
+void odometry_cb(const nav_msgs::Odometry& odometry);
+
+////////////////////////////////////////////////////////
+//Declare Main Function
+////////////////////////////////////////////////////////
+
+//main function creates subscriber for the published point cloud
+int main(int argc, char** argv) {
+	//Initialize ROS cloud topic
+	ros::init(argc, argv, "geometric_mapping_node");
+	ros::NodeHandle node;
+
+	//Parameters params;
+	Parameters param(node);
+	params = &param;
+
+	ROS_INFO("Launched geometric_mapping_node...");
+
+	//initialize sliding window
+	if(params->getWindowSize() > 1) {
+		window = new Window;
+		window->isRegistered = true;
+		window->size = params->getWindowSize();
+	}
+
+	ROS_INFO_STREAM("Created " << (window->isRegistered) ? "sliding window..." : "cloud...");
+
+	//inits PCL viewer
+	if(params->usePCLViz()) {
+		pcl::visualization::PCLVisualizer pclViewer;
+		viewer = &pclViewer;
+	}
+
+	//Create subscriber for the input pointcloud
+	ros::Subscriber cloudSub = node.subscribe("inputCloud", 1, cloud_cb);
+
+	//Create subscriber for the input odometry
+	if(params->getWindowSize() > 1) {
+		ros::Subscriber odometrySub = node.subscribe("inputOdometry", 1, odometry_cb);
+	}
+
+	//Create ROS publisher for box filtered point cloud
+	if(params->displayCloud()) {
+		cloudPub = node.advertise<sensor_msgs::PointCloud2>("cloudOutput", 10);
+	}
+
+	//Create ROS publisher for normals
+	if(params->displayNormals()) {
+		normalsPub = node.advertise<visualization_msgs::MarkerArray>("normalsOutput", 10);
+	}
+
+	//Create ROS publisher for center Axis and scaled eigenvecs
+	if(params->displayCenterAxis()) {
+		eigenBasisPub = node.advertise<visualization_msgs::MarkerArray>("eigenBasisOutput", 10);
+	}
+
+	//Create ROS publisher for cylinder
+	if(params->displayCylinder()) {
+		cylinderPub = node.advertise<visualization_msgs::Marker>("cylinderOutput", 10);
+	}
+
+	//Calls message callbacks rapidly in seperate threads
+	ros::spin();
+
+	//deletes the window
+	delete window;
+	window = nullptr;
+}
+
+////////////////////////////////////////////////////////
+//Define Callback Functions
+////////////////////////////////////////////////////////
 
 //Define Cloud Publisher function
 void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
@@ -141,7 +226,7 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 		visualization_msgs::MarkerArray* eigenBasis = rvizEigens(*eigenVals, *eigenVecs);
 
 		//Publish the center axis
-		centerAxisPub.publish(*eigenBasis);
+		eigenBasisPub.publish(*eigenBasis);
 	}
 
 	if(params->displayCylinder()) {
@@ -161,71 +246,10 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 	ROS_INFO("Callback ended...\n\n");
 }
 
-//Define Cloud Publisher function
-void odometry_cb(const nav_msgs::Odometry odometry) {
-	//push new odometry onto window
+//Define Odometry Update function
+void odometry_cb(const nav_msgs::Odometry& odometry) {
+	//push new odometry onto sliding window
 	window->odometryWindow.push_front(odometry);
-}
-
-//main function creates subscriber for the published point cloud
-int main(int argc, char** argv) {
-	//Initialize ROS cloud topic
-	ros::init(argc, argv, "geometric_mapping_node");
-	ros::NodeHandle node;
-
-	//Parameters params;
-	Parameters param(node);
-	params = &param;
-
-	ROS_INFO("Launched geometric_mapping_node...");
-
-	//initialize sliding window
-	if(params->getWindowSize() > 1) {
-		window = new Window;
-		window->isRegistered = true;
-		window->size = params->getWindowSize();
-	}
-
-	ROS_INFO_STREAM("Created " << (window->isRegistered) ? "sliding window..." : "cloud...");
-
-	//inits PCL viewer
-	if(params->usePCLViz()) {
-		pcl::visualization::PCLVisualizer pclViewer;
-		viewer = &pclViewer;
-	}
-
-	//Create subscriber for the input pointcloud
-	ros::Subscriber cloudSub = node.subscribe("inputCloud", 1, cloud_cb);
-
-	//Create subscriber for the input odometry
-	ros::Subscriber odometrySub = node.subscribe("inputOdometry", 1, odometry_cb);
-
-	//Create ROS publisher for box filtered point cloud
-	if(params->displayCloud()) {
-		cloudPub = node.advertise<sensor_msgs::PointCloud2>("cloudOutput", 10);
-	}
-
-	//Create ROS publisher for normals
-	if(params->displayNormals()) {
-		normalsPub = node.advertise<visualization_msgs::MarkerArray>("normalsOutput", 10);
-	}
-
-	//Create ROS publisher for center Axis and scaled eigenvecs
-	if(params->displayCenterAxis()) {
-		centerAxisPub = node.advertise<visualization_msgs::MarkerArray>("eigenBasisOutput", 10);
-	}
-
-	//Create ROS publisher for cylinder
-	if(params->displayCylinder()) {
-		cylinderPub = node.advertise<visualization_msgs::Marker>("cylinderOutput", 10);
-	}
-
-	//Calls message callbacks rapidly in seperate threads
-	ros::spin();
-
-	//deletes the window
-	delete window;
-	window = nullptr;
 }
 
 #endif

@@ -41,6 +41,12 @@
 #include "tunnel_processing.hpp"
 
 ////////////////////////////////////////////////////////
+//Declare Chrono Timing Functions
+////////////////////////////////////////////////////////
+
+
+
+////////////////////////////////////////////////////////
 //Declare Point Cloud Processing Functions
 ////////////////////////////////////////////////////////
 
@@ -110,7 +116,7 @@ void registeredCloudUpdate(Window*& window, pcl::PointCloud<pcl::PointXYZ>::Ptr&
 }
 
 //Chops point cloud at each timestep
-pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(const Eigen::Array3f& bounds ,const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
+pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(const Eigen::Array3f& bounds, const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
 	//Apply Box Filter
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudChopped(new pcl::PointCloud<pcl::PointXYZ>);
 	pcl::CropBox<pcl::PointXYZ> boxFilter;
