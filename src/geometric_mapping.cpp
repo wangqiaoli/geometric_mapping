@@ -14,6 +14,15 @@
 #include <nav_msgs/Odometry.h>
 #include <visualization_msgs/MarkerArray.h>
 
+//TF2 libraries
+#include <tf2/buffer_core.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+#include "tf2_ros/transform_broadcaster.h"
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include "tf2/LinearMath/Quaternion.h"
+#include <tf2_eigen/tf2_eigen.h>
+
 //PCL libraries
 #include <sensor_msgs/PointCloud2.h>
 
@@ -28,15 +37,16 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/features/normal_3d.h>
 
-#include <pcl/ModelCoefficients.h>
-#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/ransac.h>
+#include <pcl/sample_consensus/sac_model.h>
 #include <pcl/sample_consensus/model_types.h>
-#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/sample_consensus/sac_model_cylinder.h>
 
 //Eigen libraries
 #include <Eigen/Core>
 #include <Eigen/QR>
 #include <Eigen/Geometry> 
+#include <eigen_conversions/eigen_msg.h>
 
 //Project libraries
 #include "paramHandler.hpp"
@@ -47,16 +57,20 @@
 ////////////////////////////////////////////////////////
 
 //Creates sliding window for registered point cloud
-Window* window = nullptr;
+Window window;
+tf2_ros::Buffer* tfBuffer;
+tf2_ros::TransformListener* tfListener;
 
 //Creates parameter object
 Parameters* params = nullptr;
 
 //Create ROS publisher objects
-ros::Publisher cloudPub;
+ros::Publisher regCloudPub;
+ros::Publisher choppedCloudPub;
 ros::Publisher normalsPub;
 ros::Publisher eigenBasisPub;
 ros::Publisher cylinderPub;
+ros::Publisher debuggerPub;
 
 //create PCL visualizer object
 int pcl_var = 0;
@@ -86,16 +100,19 @@ int main(int argc, char** argv) {
 	Parameters param(node);
 	params = &param;
 
-	ROS_INFO("Launched geometric_mapping_node...");
+	ROS_INFO("Launched geometric_mapping_node...\n");
 
 	//initialize sliding window
 	if(params->getWindowSize() > 1) {
-		window = new Window;
-		window->isRegistered = true;
-		window->size = params->getWindowSize();
+		window.isRegistered = true;
+		window.size = params->getWindowSize();
+
+		//initialize tf listener node
+		tfBuffer = new tf2_ros::Buffer;
+		tfListener = new tf2_ros::TransformListener(*tfBuffer);
 	}
 
-	ROS_INFO_STREAM("Created " << (window->isRegistered) ? "sliding window..." : "cloud...");
+	ROS_INFO_STREAM("Created " << ((window.isRegistered) ? "sliding window..." : "cloud..."));
 
 	//inits PCL viewer
 	if(params->usePCLViz()) {
@@ -103,40 +120,46 @@ int main(int argc, char** argv) {
 		viewer = &pclViewer;
 	}
 
-	//Create subscriber for the input pointcloud
-	ros::Subscriber cloudSub = node.subscribe("inputCloud", 1, cloud_cb);
-
 	//Create subscriber for the input odometry
-	if(params->getWindowSize() > 1) {
-		ros::Subscriber odometrySub = node.subscribe("inputOdometry", 1, odometry_cb);
+	if(window.isRegistered) {
+		ros::Subscriber odometrySub = node.subscribe("~/inputOdometry", 1, odometry_cb);
+	}
+
+	//Create subscriber for the input pointcloud
+	ros::Subscriber cloudSub = node.subscribe("~/inputCloud", 1, cloud_cb);
+
+	//create ros publisher for chopped cloud
+	if(window.isRegistered) {
+		regCloudPub = node.advertise<sensor_msgs::PointCloud2>("~/regCloudOutput", 10);
 	}
 
 	//Create ROS publisher for box filtered point cloud
-	if(params->displayCloud()) {
-		cloudPub = node.advertise<sensor_msgs::PointCloud2>("cloudOutput", 10);
+	if(params->displayClouds()) {
+		choppedCloudPub = node.advertise<sensor_msgs::PointCloud2>("~/choppedCloudOutput", 10);
 	}
 
 	//Create ROS publisher for normals
 	if(params->displayNormals()) {
-		normalsPub = node.advertise<visualization_msgs::MarkerArray>("normalsOutput", 10);
+		normalsPub = node.advertise<visualization_msgs::MarkerArray>("~/normalsOutput", 10);
 	}
 
 	//Create ROS publisher for center Axis and scaled eigenvecs
 	if(params->displayCenterAxis()) {
-		eigenBasisPub = node.advertise<visualization_msgs::MarkerArray>("eigenBasisOutput", 10);
+		eigenBasisPub = node.advertise<visualization_msgs::MarkerArray>("~/eigenBasisOutput", 10);
 	}
 
 	//Create ROS publisher for cylinder
 	if(params->displayCylinder()) {
-		cylinderPub = node.advertise<visualization_msgs::Marker>("cylinderOutput", 10);
+		cylinderPub = node.advertise<visualization_msgs::Marker>("~/cylinderOutput", 10);
 	}
+
+	// //Create ROS publisher for debugging markers
+	// if(params->displayDebugger()) {
+	// 	debuggerPub = node.advertise<visualization_msgs::MarkerArray>("debuggerOutput", 10);
+	// }
 
 	//Calls message callbacks rapidly in seperate threads
 	ros::spin();
-
-	//deletes the window
-	delete window;
-	window = nullptr;
 }
 
 ////////////////////////////////////////////////////////
@@ -153,24 +176,50 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 	//Convert to PCL
 	pcl::fromROSMsg(*input, *cloud);
 
+	ROS_INFO("Cloud size is:\t %d", (int) cloud->points.size());
+
+	//create rviz debugger
+	auto debuggerMarkers = boost::make_shared<visualization_msgs::MarkerArray>();
+
 	//update sliding window if needed
-	if(window->isRegistered) {
-		registeredCloudUpdate(window, cloud);
+	if(window.isRegistered) {
+		pcl::PointCloud<pcl::PointXYZ>::Ptr cloudTemp(new pcl::PointCloud<pcl::PointXYZ>(*cloud));
+		cloud = registeredCloudUpdate(
+										window, 
+										*tfBuffer, 
+										cloudTemp
+									 );
+
+		ROS_INFO("Registered cloud size is:\t %d", (int) cloud->points.size());
+		ROS_INFO_STREAM("Registered cloud frame is:\t" << cloud->header.frame_id);
 	}
 
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudChopped = chopCloud(*params->getBoxFilterBounds(), cloud);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudChopped = chopCloud(
+																	window,
+																	*tfBuffer,
+																	*params->getBoxFilterBounds(), 
+																	cloud
+																);
 
 	ROS_INFO("Box filter applied...");
+
+	ROS_INFO("Chopped cloud size is:\t %d", (int) cloudChopped->points.size());
 
 	//Find Surface Normals
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr kdtree(nullptr);
 	std::vector<int> indicesMap;
-	pcl::PointCloud<pcl::Normal>::Ptr cloudNormals = getNormals(params->getNeighborRadius(), cloudChopped, kdtree, indicesMap);
+
+	pcl::PointCloud<pcl::Normal>::Ptr cloudNormals = getNormals(
+																	params->getNeighborRadius(), 
+																	cloudChopped, 
+																	kdtree, 
+																	indicesMap
+																);
 
 	ROS_INFO("Surface normals found...");
 
-	Eigen::Vector3f* eigenVals = nullptr;
-	Eigen::Matrix3f* eigenVecs = nullptr;
+	auto eigenVals = boost::make_shared<Eigen::Vector3f>();
+	auto eigenVecs = boost::make_shared<Eigen::Matrix3f>();
 
 	getLocalFrame(
 					cloudChopped->points.size(), 
@@ -178,78 +227,96 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 					cloudNormals,
 					eigenVals,
 					eigenVecs
-				  );
+				 );
 
 	//get center axis and assume that first eigenvec is smallest
-	Eigen::Vector3f* centerAxis(new Eigen::Vector3f);
-	*centerAxis = eigenVecs->block<3,1>(0,0);
+	Eigen::Vector3f centerAxis;
+	centerAxis = eigenVecs->block<3,1>(0,0);
 
 	ROS_INFO("Center Axis found...");
 
-	Eigen::VectorXf* cylinderModel = getCylinder(
-													cloudChopped,
-													cloudNormals
-												);
+	//get cylinder model using RANSAC
+	auto cylinderModel = getCylinder(
+										params->getDistThreshold(),
+										centerAxis,
+										cloudChopped,
+										cloudNormals
+									);
 
 	ROS_INFO("Local Cylinder Model found...");
 
-	if(params->displayCloud()) {
+	if(params->displayClouds()) {
 		//convert the pcl::PointCloud to ros message
-		sensor_msgs::PointCloud2 cloudROS;
-		pcl::toROSMsg(*cloudChopped, cloudROS);
+		sensor_msgs::PointCloud2 regCloudROS;
+		pcl::toROSMsg(*cloud, regCloudROS);
+
+		sensor_msgs::PointCloud2 choppedCloudROS;
+		pcl::toROSMsg(*cloudChopped, choppedCloudROS);
 
 		//Publish the box filtered cloud
-		cloudPub.publish(cloudROS);
+		regCloudPub.publish(regCloudROS);
+
+		choppedCloudPub.publish(choppedCloudROS);
 
 		ROS_INFO("Chopped cloud posted to rviz...");
 	}
 
-	//visualize normals in pcl
-  	if(params->usePCLViz()) {
-  		pclvizNormals(pcl_var, *viewer, cloudChopped, cloudNormals);
-  	}
+	// //visualize normals in pcl
+ //  	if(params->usePCLViz()) {
+ //  		pclvizNormals(pcl_var, *viewer, cloudChopped, cloudNormals);
+ //  	}
 
-	if(params->displayNormals()) {
-	  	visualization_msgs::MarkerArray* normalsDisp = rvizNormals(
-	  																params->getLeafSize(),
-	  																cloudChopped,
-	  																kdtree,
-	  																indicesMap,
-	  																cloudNormals
-	  															  );
+	// if(params->displayNormals()) {
+	//   	visualization_msgs::MarkerArray* normalsDisp = rvizNormals(
+	//   																params->getLeafSize(),
+	//   																cloudChopped,
+	//   																kdtree,
+	//   																indicesMap,
+	//   																cloudNormals
+	//   															  );
 
-		//Publish the normals
-		normalsPub.publish(*normalsDisp);
-	}
+	// 	//Publish the normals
+	// 	normalsPub.publish(*normalsDisp);
+	// }
 
-	if(params->displayCenterAxis()) {
-		visualization_msgs::MarkerArray* eigenBasis = rvizEigens(*eigenVals, *eigenVecs);
+	// if(params->displayCenterAxis()) {
+	// 	visualization_msgs::MarkerArray* eigenBasis = rvizEigens(*eigenVals, *eigenVecs);
 
-		//Publish the center axis
-		eigenBasisPub.publish(*eigenBasis);
-	}
+	// 	//Publish the center axis
+	// 	eigenBasisPub.publish(*eigenBasis);
+	// }
 
-	if(params->displayCylinder()) {
-		Eigen::Vector4f color(.6, 1, .65, 0);
-		visualization_msgs::Marker* cylinderDisp = rvizCylinder(
-																	*params->getBoxFilterBounds(),
-																	*cylinderModel,
-																	*centerAxis,
-																	color,
-																	"cylinderModel"
-																);
+	// if(params->displayCylinder()) {
+	// 	Eigen::Vector4f color(.6, 1, .65, 0);
+	// 	visualization_msgs::Marker* cylinderDisp = rvizCylinder(
+	// 																*params->getBoxFilterBounds(),
+	// 																*cylinderModel,
+	// 																*centerAxis,
+	// 																color,
+	// 																"cylinderModel"
+	// 															);
 
-		//Publish the data
-		cylinderPub.publish(*cylinderDisp);
-	}
+	// 	//Publish the data
+	// 	cylinderPub.publish(*cylinderDisp);
+	// }
+
+	// //Publish the debugger markers
+	// if(params->displayDebugger()) {
+	// 	debuggerPub.publish(*debuggerMarkers);
+	// }
 
 	ROS_INFO("Callback ended...\n\n");
 }
 
 //Define Odometry Update function
 void odometry_cb(const nav_msgs::Odometry& odometry) {
+	//Removes odometry outside sliding window
+	while(window.odometryWindow.size() >= window.size) {
+		window.odometryWindow.pop_back();
+	}
+
 	//push new odometry onto sliding window
-	window->odometryWindow.push_front(odometry);
+	window.odometryWindow.push_front(odometry);//*odometryInertial);
 }
 
 #endif

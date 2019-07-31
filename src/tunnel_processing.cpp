@@ -13,6 +13,15 @@
 #include <nav_msgs/Odometry.h>
 #include <visualization_msgs/MarkerArray.h>
 
+//TF2 libraries
+#include <tf2/buffer_core.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+#include "tf2_ros/transform_broadcaster.h"
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include "tf2/LinearMath/Quaternion.h"
+#include <tf2_eigen/tf2_eigen.h>
+
 //PCL libraries
 #include <sensor_msgs/PointCloud2.h>
 
@@ -27,17 +36,19 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/features/normal_3d.h>
 
-#include <pcl/ModelCoefficients.h>
-#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/ransac.h>
+#include <pcl/sample_consensus/sac_model.h>
 #include <pcl/sample_consensus/model_types.h>
-#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/sample_consensus/sac_model_cylinder.h>
 
 //Eigen libraries
 #include <Eigen/Core>
 #include <Eigen/QR>
 #include <Eigen/Geometry>
+#include <eigen_conversions/eigen_msg.h>
 
 //Project libraries
+#include "paramHandler.hpp"
 #include "tunnel_processing.hpp"
 
 ////////////////////////////////////////////////////////
@@ -51,77 +62,156 @@
 ////////////////////////////////////////////////////////
 
 //Creates Registered cloud from time series data
-void registeredCloudUpdate(Window*& window, pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
-	if(window->isRegistered) {
-		//add cloud to window
-		window->cloudWindow.push_front(*cloud);
+pcl::PointCloud<pcl::PointXYZ>::Ptr registeredCloudUpdate(
+															// visualization_msgs::MarkerArray*& debugMarkers,
+															Window& window,
+															const tf2_ros::Buffer& tfBuffer,
+															const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
+															const std::string& baseFrame
+														  ) {
+	ROS_INFO("Creating registered cloud...");
 
-		//init registered cloud
-		pcl::PointCloud<pcl::PointXYZ>::Ptr registeredCloud(new pcl::PointCloud<pcl::PointXYZ>(*cloud));
+	//retrieve the broadcasted transform to the world frame
+	geometry_msgs::TransformStamped transformStamped;
+    try {
+      	transformStamped = tfBuffer.lookupTransform(
+      													baseFrame, 
+      													cloud->header.frame_id.substr(1), 
+      													pcl_conversions::fromPCL(cloud->header.stamp)
+      												);
+    } catch(tf2::TransformException &ex) {
+      	ROS_INFO("%s",ex.what());
+      	ros::Duration(1.0).sleep();
+      	return cloud;
+    }
 
-		//concatinate registered cloud into single local cloud using affine transformations
-		Eigen::Vector3f endPose(
-									window->odometryWindow[0].pose.pose.position.x,
-									window->odometryWindow[0].pose.pose.position.y,
-									window->odometryWindow[0].pose.pose.position.z
-							   );
+    //transform to the world frame
+    Eigen::Vector3d* transfPos(new Eigen::Vector3d);
+    tf::vectorMsgToEigen(transformStamped.transform.translation, *transfPos);
 
-		Eigen::Quaternionf endQuat(
-									window->odometryWindow[0].pose.pose.orientation.w,
-									window->odometryWindow[0].pose.pose.orientation.x,
-									window->odometryWindow[0].pose.pose.orientation.y,
-									window->odometryWindow[0].pose.pose.orientation.z
-								  );
+    Eigen::Quaterniond* transfQuat(new Eigen::Quaterniond);
+    tf::quaternionMsgToEigen(transformStamped.transform.rotation, *transfQuat);
 
-		//DO I NEED TO USE TF2?????
+    ROS_INFO_STREAM("Cloud frame is:\t" << cloud->header.frame_id);
+    std::cout << "Transform pose is:\n" 
+              << transfPos->transpose() 
+              << "\nTransform rotation is:\n" 
+              << transfQuat->w() 
+              << " " << transfQuat->vec().transpose()
+              << std::endl;
 
-		ROS_INFO("CURRENT WINDOW SIZE: %d", window->size);
+    //Create affine transformation from start (previous) frame to end (current) frame
+	Eigen::Affine3f affine = Eigen::Affine3f::Identity();
+	affine.translation() << transfPos->cast<float>()[0], transfPos->cast<float>()[1], transfPos->cast<float>()[2];
+	affine.rotate(transfQuat->cast<float>().toRotationMatrix());
 
-		for(int i = 1; i < window->size; i++) {
-			//initialize new pose and orientation from the odometry window
-			Eigen::Vector3f startPose(
-										window->odometryWindow[i].pose.pose.position.x,
-										window->odometryWindow[i].pose.pose.position.y,
-										window->odometryWindow[i].pose.pose.position.z
-							   	    );
+	std::cout << "Transform is:\n" << affine.matrix() << std::endl;
 
-			Eigen::Quaternionf startQuat(
-										window->odometryWindow[i].pose.pose.orientation.w,
-										window->odometryWindow[i].pose.pose.orientation.x,
-										window->odometryWindow[i].pose.pose.orientation.y,
-										window->odometryWindow[i].pose.pose.orientation.z
-								  	  );
+	//Apply Transformation to the world frame
+	pcl::PointCloud<pcl::PointXYZ>::Ptr registeredCloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::transformPointCloud(*cloud, *registeredCloud, affine);
+	registeredCloud->header.frame_id = "/" + baseFrame; //update frame ID
 
-			//find difference in pose and orientation relative to the start frame
-			Eigen::Quaternionf diffQuat = endQuat.inverse() * startQuat;
-			Eigen::Vector3f diffPose = endPose - startPose;
+	ROS_INFO("Affine Transformation applied...");
 
-			//pose in new coordinate system
-			Eigen::Vector3f newDiffPose = diffPose.transpose() * endQuat.toRotationMatrix();
-
-			//Create affine transformation from start (previous) frame to end (current) frame
-			Eigen::Affine3f affine = Eigen::Affine3f::Identity();
-			affine.translation() << newDiffPose[0], newDiffPose[1], newDiffPose[2]; //add pose in end frame
-			affine.rotate(diffQuat.toRotationMatrix()); //add rotation from start frame to end frame
-
-			pcl::PointCloud<pcl::PointXYZ> transformedCloud;
-			pcl::transformPointCloud(window->cloudWindow[i], transformedCloud, affine);
-
-			//concatinates current cloud and all previous clouds processed so far
-			*registeredCloud += transformedCloud;
-		}
-
-		cloud = registeredCloud;
+	//pop oldest cloud if window is full
+	while(window.cloudWindow.size() >= window.size) {
+		window.cloudWindow.pop_back();
 	}
+
+	//add cloud to window and 
+	window.cloudWindow.push_front(*registeredCloud);
+
+	ROS_INFO_STREAM("Registered cloud frame is:\t" << registeredCloud->header.frame_id);
+
+	//set loop for either window.size iterations or for number of iterations passed since start
+	int slidingWindowIts = window.size;
+	if(window.cloudWindow.size() < slidingWindowIts) {
+		slidingWindowIts = window.cloudWindow.size();
+		ROS_INFO("Window will be %d timesteps...", (int) window.cloudWindow.size());
+	}
+
+	// //Use odometry to convert previous cloud to it's position in the world frame
+	// Eigen::Vector3d endPos;
+ //    tf::pointMsgToEigen(window.odometryWindow[0].pose.pose.position, endPos);
+
+ //    Eigen::Quaterniond endQuat;
+ //    tf::quaternionMsgToEigen(window.odometryWindow[0].pose.pose.orientation, endQuat);
+
+	//concatinates current cloud and all previous clouds in world frame
+	for(int i = 1; i < slidingWindowIts; i++) {
+		// //Get start pose
+		// Eigen::Vector3d startPos;
+	 //    tf::pointMsgToEigen(window.odometryWindow[0].pose.pose.position, startPos);
+
+	 //    Eigen::Quaterniond startQuat;
+	 //    tf::quaternionMsgToEigen(window.odometryWindow[0].pose.pose.orientation, startQuat);
+
+	 //    //Find difference vector and quaternion for coordinate transformation
+		// Eigen::Vector3d diffPos = startPos - endPos; 
+	 //    Eigen::Quaterniond diffQuat = endQuat.inverse() * startQuat;
+
+		// //create affine transformation to the pose from the world frame
+		// Eigen::Affine3d affine = Eigen::Affine3d::Identity();
+		// affine.translation() << diffPos[0], diffPos[1], diffPos[2];
+		// affine.rotate(diffQuat.toRotationMatrix());
+
+		// pcl::PointCloud<pcl::PointXYZ> transformedCloud;
+		// pcl::transformPointCloud(window.cloudWindow[i], transformedCloud, affine);
+
+		//concatinate cloud into registered cloud sliding window
+		*registeredCloud += window.cloudWindow[i];
+
+		ROS_INFO("Previous cloud #%d added to registered cloud...", i);
+	}
+
+	//publish transform for local world frame
+
+
+	return registeredCloud;
 }
 
 //Chops point cloud at each timestep
-pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(const Eigen::Array3f& bounds, const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
+pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(
+												// visualization_msgs::MarkerArray*& debugMarkers,
+												const Window& window,
+												const tf2_ros::Buffer& tfBuffer,
+												const Eigen::Array3f& bounds, 
+												const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
+												const std::string& baseFrame
+											 ) {
 	//Apply Box Filter
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudChopped(new pcl::PointCloud<pcl::PointXYZ>);
+
 	pcl::CropBox<pcl::PointXYZ> boxFilter;
 	boxFilter.setMin(Eigen::Vector4f(-bounds(0), -bounds(1), -bounds(2), 1.0));
 	boxFilter.setMax(Eigen::Vector4f(bounds(0), bounds(1), bounds(2), 1.0));
+
+	if(window.isRegistered) { //transforms box to velodyne
+		//retrieve the broadcasted transform to the world frame
+		geometry_msgs::TransformStamped transformStamped;
+	    try {
+	      	transformStamped = tfBuffer.lookupTransform(
+	      													cloud->header.frame_id.substr(1),
+	      													"velodyne", 
+	      													pcl_conversions::fromPCL(cloud->header.stamp)
+	      												);
+	    } catch(tf2::TransformException &ex) {
+	      	ROS_INFO("%s",ex.what());
+	      	ros::Duration(1.0).sleep();
+	    }
+
+	    //transform to velodyne frame
+	    Eigen::Vector3d* transfPos(new Eigen::Vector3d);
+	    tf::vectorMsgToEigen(transformStamped.transform.translation, *transfPos);
+
+	    Eigen::Quaterniond* transfQuat(new Eigen::Quaterniond);
+	    tf::quaternionMsgToEigen(transformStamped.transform.rotation, *transfQuat);
+
+	    boxFilter.setTranslation(transfPos->cast<float>());
+	    boxFilter.setRotation(transfQuat->cast<float>().toRotationMatrix().eulerAngles(0, 1, 2));
+	}
+
 	boxFilter.setInputCloud(cloud);
 	boxFilter.filter(*cloudChopped);
 
@@ -130,6 +220,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(const Eigen::Array3f& bounds, cons
 
 //Calculates and returns surface normals of point cloud and removes NAN points from the cloud
 pcl::PointCloud<pcl::Normal>::Ptr getNormals(
+												// visualization_msgs::MarkerArray*& debugMarkers,
 												const double& neighborRadius, 
 												pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, 
 												pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree,
@@ -189,16 +280,17 @@ pcl::PointCloud<pcl::Normal>::Ptr getNormals(
 
 //Calculates center axis of the tunnel using the eigenvalues and eigenvectors of the normal cloud
 void getLocalFrame(
+					// visualization_msgs::MarkerArray*& debugMarkers,
 					const int& cloudSize, 
 					const double& weightingFactor, //on [.1, .3]
 					const pcl::PointCloud<pcl::Normal>::Ptr& cloud_normals,
-					Eigen::Vector3f*& eigenVals,
-					Eigen::Matrix3f*& eigenVecs
+					boost::shared_ptr<Eigen::Vector3f>& eigenVals,
+					boost::shared_ptr<Eigen::Matrix3f>& eigenVecs
 				  ) {
 	//initialize weight matrix with curvatures and weight factor
 	Eigen::MatrixXf weights = Eigen::MatrixXf::Zero(cloudSize, cloudSize); //(nxn)
 
-	std::cout << "Weights made of size:\t" << cloudSize << std::endl;
+	ROS_INFO("Weights made of size:\t %d", (int) cloudSize);
 
 	for(int i = 0; i < cloudSize; i++) {
 		// std::cout << "Curvature #" << i << " is: \t" << cloud_normals->at(i).curvature << std::endl;
@@ -227,13 +319,11 @@ void getLocalFrame(
 	//Take eigenvectors of the intensity matrix
 	Eigen::SelfAdjointEigenSolver<Eigen::MatrixXf> eigenSolver(intensity);
 
-	Eigen::Vector3f* eigenValues(new Eigen::Vector3f);
-	*eigenValues = eigenSolver.eigenvalues(); //(3x1)
-	std::cout << "Eigenvalues are:\n" << eigenSolver.eigenvalues().transpose() << std::endl;
+	auto eigenValues = boost::make_shared<Eigen::Vector3f>(eigenSolver.eigenvalues()); //(3x1)
+	std::cout << "Eigenvalues are:\n" << eigenValues << std::endl;
 
-	Eigen::Matrix3f* eigenVectors(new Eigen::Matrix3f);
-	*eigenVectors = eigenSolver.eigenvectors(); //(3x3)
-	std::cout << "Eigenvectors are:\n" << eigenSolver.eigenvectors() << std::endl;
+	auto eigenVectors = boost::make_shared<Eigen::Matrix3f>(eigenSolver.eigenvectors()); //(3x3)
+	std::cout << "Eigenvectors are:\n" << eigenVectors << std::endl;
 
 	// //use minimum eigenvector as center axis and display on rviz
 	// Eigen::Vector3f* centerAxis(new Eigen::Vector3f);
@@ -247,56 +337,28 @@ void getLocalFrame(
 }
 
 //Regression function using RANSAC
-Eigen::VectorXf* getCylinder(
-								const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
-								const pcl::PointCloud<pcl::Normal>::Ptr& normals
-							) {
-	//Create segmentation object 
-	pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> RANSAC;
+boost::shared_ptr<Eigen::VectorXf> getCylinder(
+												// visualization_msgs::MarkerArray*& debugMarkers,
+												const double& distThreshold,
+												const Eigen::Vector3f& centerAxis,
+												const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
+												const pcl::PointCloud<pcl::Normal>::Ptr& normals
+											  ) {
 
-	// pcl::ExtractIndices<PointT> extract;
-	pcl::ModelCoefficients::Ptr cylinderCoefficients(new pcl::ModelCoefficients);
-	pcl::PointIndices::Ptr cylinderInliers(new pcl::PointIndices);
+	//Create segmentation object
+	pcl::SampleConsensusModelCylinder<pcl::PointXYZ, pcl::Normal>::Ptr model(new pcl::SampleConsensusModelCylinder<pcl::PointXYZ, pcl::Normal>(cloud));
+	model->setInputNormals(normals);
+	model->setAxis(centerAxis);
 
 	// Create the segmentation object for cylinder segmentation and set all the parameters
-	RANSAC.setOptimizeCoefficients(true);
-	RANSAC.setModelType(pcl::SACMODEL_CYLINDER);
-	RANSAC.setMethodType(pcl::SAC_RANSAC);
-	RANSAC.setNormalDistanceWeight(0.1);
-	RANSAC.setMaxIterations(10000);
-	RANSAC.setDistanceThreshold(0.05);
-	RANSAC.setRadiusLimits(0, 15);
-	RANSAC.setInputCloud(cloud);
-	RANSAC.setInputNormals(normals);
+	pcl::RandomSampleConsensus<pcl::PointXYZ> RANSAC(model);
+	RANSAC.setDistanceThreshold(distThreshold);
 
-	// Obtain the cylinder inliers and coefficients
-	RANSAC.segment(*cylinderInliers, *cylinderCoefficients);
+	// Obtain the cylinder coefficients
+	auto cylinderCoeffs = boost::make_shared<Eigen::VectorXf>();
+	RANSAC.getModelCoefficients(*cylinderCoeffs);
 
-	//convert pcl::ModelCoefficients to eigen
-	Eigen::VectorXf cylinderCoeffs(7);
-	cylinderCoeffs(0) = cylinderCoefficients->values[0];
-	cylinderCoeffs(1) = cylinderCoefficients->values[1];
-	cylinderCoeffs(2) = cylinderCoefficients->values[2];
-	cylinderCoeffs(3) = cylinderCoefficients->values[3];
-	cylinderCoeffs(4) = cylinderCoefficients->values[4];
-	cylinderCoeffs(5) = cylinderCoefficients->values[5];
-	cylinderCoeffs(6) = cylinderCoefficients->values[6];
-
-	// Write the cylinder inliers to disk (DEBUGGING)
-	// pcl::PointCloud<PointT>::Ptr cloudCylinder(new pcl::PointCloud<PointT>());
-
-	// extract.setInputCloud(cloud);
-	// extract.setIndices(cylinderInliers);
-	// extract.setNegative(false);
-	// extract.filter(*cloudCylinder);
-
-	// std::cout << "\nCylinder cloud size:\n" 
-	// 		  << cloudCylinder->points.size() 
-	// 		  << "\ncoefficients:\n" 
-	// 		  << cylinderCoeffs->transpose()
-	// 		  << std::endl;
-
-	return (new Eigen::VectorXf(cylinderCoeffs));
+	return cylinderCoeffs;
 }
 
 ////////////////////////////////////////////////////////
@@ -304,17 +366,17 @@ Eigen::VectorXf* getCylinder(
 ////////////////////////////////////////////////////////
 
 //Displays single arrow in rviz
-visualization_msgs::Marker* rvizArrow(
-										const Eigen::Vector3f& start, 
-										const Eigen::Vector3f& end,
-										const Eigen::Vector3f& scale, 
-										const Eigen::Vector4f& color,
-										const std::string& ns,
-										const int& id,
-										const std::string& frame
-									  ) {
+boost::shared_ptr<visualization_msgs::Marker> rvizArrow(
+															const Eigen::Vector3f& start, 
+															const Eigen::Vector3f& end,
+															const Eigen::Vector3f& scale, 
+															const Eigen::Vector4f& color,
+															const std::string& ns,
+															const int& id,
+															const std::string& frame
+									 					) {
 	//declare marker
-	visualization_msgs::Marker* centerAxisVec(new visualization_msgs::Marker);
+	auto centerAxisVec = boost::make_shared<visualization_msgs::Marker>();
 
 	//set normal parameters
 	centerAxisVec->header.frame_id = frame;
@@ -351,13 +413,13 @@ visualization_msgs::Marker* rvizArrow(
 }
 
 //Displays surface normals in rviz using VoxelGrid Filter and KD tree to free computing power
-visualization_msgs::MarkerArray* rvizNormals(
-												const double& leafSize, 
-												const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, 
-												const pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree,
-												const std::vector<int>& indicesMap,
-												const pcl::PointCloud<pcl::Normal>::Ptr& normals
-											) {
+boost::shared_ptr<visualization_msgs::MarkerArray> rvizNormals(
+																const double& leafSize, 
+																const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, 
+																const pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree,
+																const std::vector<int>& indicesMap,
+																const pcl::PointCloud<pcl::Normal>::Ptr& normals
+															  ) {
 	//Implement VoxelGrid Filter
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudVoxelFiltered(new pcl::PointCloud<pcl::PointXYZ>);
 
@@ -369,7 +431,7 @@ visualization_msgs::MarkerArray* rvizNormals(
 	ROS_INFO("VoxelGrid filter applied...");
 
 	//Add normals of the nearest neighbor cloud to MarkerArray
-	visualization_msgs::MarkerArray* normalVecs(new visualization_msgs::MarkerArray);
+	auto normalVecs = boost::make_shared<visualization_msgs::MarkerArray>();
 	normalVecs->markers.resize(cloudVoxelFiltered->points.size());
 
 	std::cout << "Size\t" << cloudVoxelFiltered->points.size() << std::endl;
@@ -416,12 +478,15 @@ visualization_msgs::MarkerArray* rvizNormals(
 }
 
 //Displays eigenspace in rviz
-visualization_msgs::MarkerArray* rvizEigens(const Eigen::Vector3f& eigenVals, const Eigen::Matrix3f& eigenVecs) {
-	visualization_msgs::MarkerArray* eigenBasis(new visualization_msgs::MarkerArray);
+boost::shared_ptr<visualization_msgs::MarkerArray> rvizEigens(
+																const boost::shared_ptr<Eigen::Vector3f>& eigenVals,
+																const boost::shared_ptr<Eigen::Matrix3f>& eigenVecs
+															 ) {
+	auto eigenBasis = boost::shared_ptr<visualization_msgs::MarkerArray>();
 	eigenBasis->markers.resize(3); //for E1E2E3 basis
 
 	//normalize eigenvals and use to set legnth of arrow basis
-	Eigen::Vector3f eigenValNorms = (1/eigenVals.norm()) * eigenVals.cwiseAbs();
+	Eigen::Vector3f eigenValNorms = (1/eigenVals->norm()) * eigenVals->cwiseAbs();
 
 	// std::cout << "\n\neigenNorms:" << eigenValNorms.transpose() << std::endl;
 	// std::cout << "eigen2:" << eigenVecs.block<3,1>(0,1) << std::endl;
@@ -447,7 +512,7 @@ visualization_msgs::MarkerArray* rvizEigens(const Eigen::Vector3f& eigenVals, co
 
 		eigenBasis->markers[i] = *rvizArrow(
 												Eigen::Vector3f::Zero(), 
-												(1 + .5*eigenValNorms(i)) * eigenVecs.block<3,1>(0,i), //vecs by col
+												(1 + .5*eigenValNorms(i)) * eigenVecs->block<3,1>(0,i), //vecs by col
 												scale,
 												color,
 												"eigenBasis",
@@ -461,20 +526,20 @@ visualization_msgs::MarkerArray* rvizEigens(const Eigen::Vector3f& eigenVals, co
 }
 
 //Displays Regression in rviz
-visualization_msgs::Marker* rvizCylinder(
-											const Eigen::Array3f& bounds,
-											const Eigen::VectorXf& cylinderCoeffs,
-											const Eigen::Vector3f& centerAxis, 
-											const Eigen::Vector4f& color,
-											const std::string& ns,
-											const int& id,
-											const std::string& frame
-										) {
+boost::shared_ptr<visualization_msgs::Marker> rvizCylinder(
+															const Eigen::Array3f& bounds,
+															const Eigen::VectorXf& cylinderCoeffs,
+															const Eigen::Vector3f& centerAxis, 
+															const Eigen::Vector4f& color,
+															const std::string& ns,
+															const int& id,
+															const std::string& baseFrame
+														  ) {
 	//declare marker
-	visualization_msgs::Marker* cylinder(new visualization_msgs::Marker);
+	auto cylinder = boost::make_shared<visualization_msgs::Marker>();
 
 	//set normal parameters
-	cylinder->header.frame_id = frame;
+	cylinder->header.frame_id = baseFrame;
 	cylinder->header.stamp = ros::Time::now();
 	cylinder->header.seq = 0;
 	cylinder->ns = ns;

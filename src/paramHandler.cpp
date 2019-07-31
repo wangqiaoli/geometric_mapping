@@ -16,6 +16,18 @@
 
 //Deals with the parameter data
 Parameters::Parameters(ros::NodeHandle& node) {
+	if(node.getParam("baseFrame", baseFrame)) {
+		ROS_INFO("baseFrame set to:\t %s",baseFrame.c_str());
+	} else {
+		ROS_INFO("ERROR: baseFrame set to default...");
+	}
+
+	if(node.getParam("inputFrame", inputFrame)) {
+		ROS_INFO("inputFrame set to:\t %s",inputFrame.c_str());
+	} else {
+		ROS_INFO("ERROR: inputFrame set to default...");
+	}
+
 	if(node.getParam("windowSize", windowSize)) {
 		ROS_INFO("windowSize set to:\t %d", windowSize);
 	} else {
@@ -24,13 +36,17 @@ Parameters::Parameters(ros::NodeHandle& node) {
 
 	std::string bounds;
 	Eigen::Array3f boundsVector;
-	if(node.getParam("boxFilterBound", bounds)) {
+	if(node.getParam("boxFilterBoundXYZ", bounds)) {
 		char* cbounds = new char[bounds.length()+1];
 		std::strcpy(cbounds, bounds.c_str());
 		char* pend;
-		boundsVector = Eigen::Array3f(std::strtof(cbounds, &pend), std::strtof(pend, &pend), std::strtof(pend, nullptr));
 
-		ROS_INFO("boxFilterBound set to:\t %f, %f, %f", boundsVector(0), boundsVector(1), boundsVector(2));
+		float x = std::strtof(cbounds, &pend) / 2; //divide by 2 so that it will be more accurate
+		float y = std::strtof(pend, &pend) / 2;
+		float z = std::strtof(pend, nullptr) / 2;
+		boundsVector = Eigen::Array3f(x, y, z);
+
+		ROS_INFO("boxFilterBound set to:\t %f, %f, %f", x, y, z);
 	} else {
 		boundsVector = Eigen::Array3f(2.0, 5.0, 10.0);
 
@@ -78,12 +94,15 @@ Parameters::Parameters(ros::NodeHandle& node) {
 	std::string radiuslimits;
 	Eigen::Array2f radiusLimitsVector;
 	if(node.getParam("radiusLimits", radiuslimits)) {
-		char* cbounds = new char[radiuslimits.length()+1];
-		std::strcpy(cbounds, radiuslimits.c_str());
+		char* climits = new char[radiuslimits.length()+1];
+		std::strcpy(climits, radiuslimits.c_str());
 		char* pend;
-		radiusLimitsVector = Eigen::Array2f(std::strtof(cbounds, &pend), std::strtof(pend, nullptr));
 
-		ROS_INFO("radiusLimits set to:\t %f, %f", radiusLimitsVector(0), radiusLimitsVector(1));
+		float lb = std::strtof(climits, &pend);
+		float ub = std::strtof(pend, nullptr);
+		radiusLimitsVector = Eigen::Array2f(lb, ub);
+
+		ROS_INFO("radiusLimits set to:\t %f, %f", lb, ub);
 	} else {
 		radiusLimitsVector = Eigen::Array2f(0.0, 15.0);
 
@@ -92,10 +111,16 @@ Parameters::Parameters(ros::NodeHandle& node) {
 
 	radiusLimits = new Eigen::Array2f(radiusLimitsVector);
 
-	if(node.getParam("displayCloud", rvizCloud)) {
-		ROS_INFO("displayCloud set to:\t %d", rvizCloud);
+	if(node.getParam("displayDebugger", rvizDebugger)) {
+		ROS_INFO("displayDebugger set to:\t %d", rvizDebugger);
 	} else {
-		ROS_INFO("ERROR: displayCloud set to default...");
+		ROS_INFO("ERROR: displayDebugger set to default...");
+	}
+
+	if(node.getParam("displayClouds", rvizClouds)) {
+		ROS_INFO("displayClouds set to:\t %d", rvizClouds);
+	} else {
+		ROS_INFO("ERROR: displayClouds set to default...");
 	}
 
 	if(node.getParam("displayNormals", rvizNormals)) {
@@ -121,6 +146,14 @@ Parameters::Parameters(ros::NodeHandle& node) {
 	} else {
 		ROS_INFO("ERROR: pclviz set to default...");
 	}
+}
+
+std::string Parameters::getBaseFrame() {
+	return baseFrame;
+}
+
+std::string Parameters::getInputFrame() {
+	return inputFrame;
 }
 
 int Parameters::getWindowSize() {
@@ -159,8 +192,12 @@ Eigen::Array2f* Parameters::getRadiusLimits() {
 	return radiusLimits;
 }
 
-bool Parameters::displayCloud() {
-	return rvizCloud;
+bool Parameters::displayDebugger() {
+	return rvizDebugger;
+}
+
+bool Parameters::displayClouds() {
+	return rvizClouds;
 }
 
 bool Parameters::displayNormals() {

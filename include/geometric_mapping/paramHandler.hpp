@@ -16,6 +16,8 @@ class Parameters {
 	public:
 		Parameters(ros::NodeHandle& node);
 
+		std::string getBaseFrame();
+		std::string getInputFrame();
 		int getWindowSize();
 		Eigen::Array3f* getBoxFilterBounds();
 		double getLeafSize();
@@ -27,7 +29,8 @@ class Parameters {
   		double getDistThreshold(); 
   		Eigen::Array2f* getRadiusLimits();
 		
-		bool displayCloud();
+		bool displayDebugger();
+		bool displayClouds();
 		bool displayNormals();
 		bool displayCenterAxis();
 		bool displayCylinder();
@@ -35,6 +38,8 @@ class Parameters {
 		bool usePCLViz();
 
 	private:
+		std::string baseFrame = "world";
+		std::string inputFrame = "world";
 		int windowSize = 10;
 		Eigen::Array3f* boxFilterBounds;
 		double leafSize = .1;
@@ -46,7 +51,8 @@ class Parameters {
   		double distThreshold = 0.05;
   		Eigen::Array2f* radiusLimits;
 
-		bool rvizCloud = true;
+  		bool rvizDebugger = true;
+		bool rvizClouds = true;
 		bool rvizNormals = true;
 		bool rvizCenterAxis = true;
 		bool rvizCylinder = true;
