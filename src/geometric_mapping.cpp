@@ -94,7 +94,7 @@ void odometry_cb(const nav_msgs::Odometry& odometry);
 int main(int argc, char** argv) {
 	//Initialize ROS cloud topic
 	ros::init(argc, argv, "geometric_mapping_node");
-	ros::NodeHandle node;
+	ros::NodeHandle node("~");
 
 	//Parameters params;
 	Parameters param(node);
@@ -122,35 +122,35 @@ int main(int argc, char** argv) {
 
 	//Create subscriber for the input odometry
 	if(window.isRegistered) {
-		ros::Subscriber odometrySub = node.subscribe("~/inputOdometry", 1, odometry_cb);
+		ros::Subscriber odometrySub = node.subscribe("inputOdometry", 1, odometry_cb);
 	}
 
 	//Create subscriber for the input pointcloud
-	ros::Subscriber cloudSub = node.subscribe("~/inputCloud", 1, cloud_cb);
+	ros::Subscriber cloudSub = node.subscribe("inputCloud", 1, cloud_cb);
 
 	//create ros publisher for chopped cloud
 	if(window.isRegistered) {
-		regCloudPub = node.advertise<sensor_msgs::PointCloud2>("~/regCloudOutput", 10);
+		regCloudPub = node.advertise<sensor_msgs::PointCloud2>("regCloudOutput", 10);
 	}
 
 	//Create ROS publisher for box filtered point cloud
 	if(params->displayClouds()) {
-		choppedCloudPub = node.advertise<sensor_msgs::PointCloud2>("~/choppedCloudOutput", 10);
+		choppedCloudPub = node.advertise<sensor_msgs::PointCloud2>("choppedCloudOutput", 10);
 	}
 
 	//Create ROS publisher for normals
 	if(params->displayNormals()) {
-		normalsPub = node.advertise<visualization_msgs::MarkerArray>("~/normalsOutput", 10);
+		normalsPub = node.advertise<visualization_msgs::MarkerArray>("normalsOutput", 10);
 	}
 
 	//Create ROS publisher for center Axis and scaled eigenvecs
 	if(params->displayCenterAxis()) {
-		eigenBasisPub = node.advertise<visualization_msgs::MarkerArray>("~/eigenBasisOutput", 10);
+		eigenBasisPub = node.advertise<visualization_msgs::MarkerArray>("eigenBasisOutput", 10);
 	}
 
 	//Create ROS publisher for cylinder
 	if(params->displayCylinder()) {
-		cylinderPub = node.advertise<visualization_msgs::Marker>("~/cylinderOutput", 10);
+		cylinderPub = node.advertise<visualization_msgs::Marker>("cylinderOutput", 10);
 	}
 
 	// //Create ROS publisher for debugging markers
