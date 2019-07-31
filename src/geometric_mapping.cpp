@@ -197,7 +197,7 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudChopped = chopCloud(
 																	window,
 																	*tfBuffer,
-																	*params->getBoxFilterBounds(), 
+																	params->getBoxFilterBounds(), 
 																	cloud
 																);
 
@@ -261,44 +261,44 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& input) {
 		ROS_INFO("Chopped cloud posted to rviz...");
 	}
 
-	// //visualize normals in pcl
- //  	if(params->usePCLViz()) {
- //  		pclvizNormals(pcl_var, *viewer, cloudChopped, cloudNormals);
- //  	}
+	//visualize normals in pcl
+  	if(params->usePCLViz()) {
+  		pclvizNormals(pcl_var, *viewer, cloudChopped, cloudNormals);
+  	}
 
-	// if(params->displayNormals()) {
-	//   	visualization_msgs::MarkerArray* normalsDisp = rvizNormals(
-	//   																params->getLeafSize(),
-	//   																cloudChopped,
-	//   																kdtree,
-	//   																indicesMap,
-	//   																cloudNormals
-	//   															  );
+	if(params->displayNormals()) {
+	  	auto normalsDisp = rvizNormals(
+	  									params->getLeafSize(),
+	  									cloudChopped,
+	  									kdtree,
+	  									indicesMap,
+	  									cloudNormals
+	  								  );
 
-	// 	//Publish the normals
-	// 	normalsPub.publish(*normalsDisp);
-	// }
+		//Publish the normals
+		normalsPub.publish(*normalsDisp);
+	}
 
-	// if(params->displayCenterAxis()) {
-	// 	visualization_msgs::MarkerArray* eigenBasis = rvizEigens(*eigenVals, *eigenVecs);
+	if(params->displayCenterAxis()) {
+		auto eigenBasis = rvizEigens(eigenVals, eigenVecs);
 
-	// 	//Publish the center axis
-	// 	eigenBasisPub.publish(*eigenBasis);
-	// }
+		//Publish the center axis
+		eigenBasisPub.publish(*eigenBasis);
+	}
 
-	// if(params->displayCylinder()) {
-	// 	Eigen::Vector4f color(.6, 1, .65, 0);
-	// 	visualization_msgs::Marker* cylinderDisp = rvizCylinder(
-	// 																*params->getBoxFilterBounds(),
-	// 																*cylinderModel,
-	// 																*centerAxis,
-	// 																color,
-	// 																"cylinderModel"
-	// 															);
+	if(params->displayCylinder()) {
+		Eigen::Vector4f color(.6, 1, .65, 0);
+		auto cylinderDisp = rvizCylinder(
+											params->getBoxFilterBounds(),
+											*cylinderModel,
+											centerAxis,
+											color,
+											"cylinderModel"
+										 );
 
-	// 	//Publish the data
-	// 	cylinderPub.publish(*cylinderDisp);
-	// }
+		//Publish the data
+		cylinderPub.publish(*cylinderDisp);
+	}
 
 	// //Publish the debugger markers
 	// if(params->displayDebugger()) {

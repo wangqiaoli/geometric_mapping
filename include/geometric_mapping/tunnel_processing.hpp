@@ -92,7 +92,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(
 												// visualization_msgs::MarkerArray*& debugMarkers,
 												const Window& window,
 												const tf2_ros::Buffer& tfBuffer,
-												const Eigen::Array3f& bounds, 
+												const boost::shared_ptr<Eigen::Array3f>& bounds, 
 												const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
 												const std::string& baseFrame = "world"
 											 );
@@ -167,7 +167,7 @@ boost::shared_ptr<visualization_msgs::MarkerArray> rvizEigens(
 
 //Displays regression in rviz
 boost::shared_ptr<visualization_msgs::Marker> rvizCylinder(
-															const Eigen::Array3f& bounds,
+															const boost::shared_ptr<Eigen::Array3f>& bounds,
 															const Eigen::VectorXf& cylinderCoeffs,
 															const Eigen::Vector3f& centerAxis,
 															const Eigen::Vector4f& color,

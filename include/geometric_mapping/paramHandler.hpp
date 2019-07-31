@@ -19,7 +19,7 @@ class Parameters {
 		std::string getBaseFrame();
 		std::string getInputFrame();
 		int getWindowSize();
-		Eigen::Array3f* getBoxFilterBounds();
+		boost::shared_ptr<Eigen::Array3f> getBoxFilterBounds();
 		double getLeafSize();
 		double getNeighborRadius(); 
 		double getWeightingFactor();
@@ -27,7 +27,7 @@ class Parameters {
 		double getNormalDistWeight(); 
   		int getMaxIterations(); 
   		double getDistThreshold(); 
-  		Eigen::Array2f* getRadiusLimits();
+  		boost::shared_ptr<Eigen::Array2f> getRadiusLimits();
 		
 		bool displayDebugger();
 		bool displayClouds();
@@ -41,7 +41,7 @@ class Parameters {
 		std::string baseFrame = "world";
 		std::string inputFrame = "world";
 		int windowSize = 10;
-		Eigen::Array3f* boxFilterBounds;
+		boost::shared_ptr<Eigen::Array3f> boxFilterBounds;
 		double leafSize = .1;
 		double neighborRadius = .03;
 		double weightingFactor = .2;
@@ -49,7 +49,7 @@ class Parameters {
 		double normalDistWeight = 0.1;
   		int maxIterations = 10000;
   		double distThreshold = 0.05;
-  		Eigen::Array2f* radiusLimits;
+  		boost::shared_ptr<Eigen::Array2f> radiusLimits;
 
   		bool rvizDebugger = true;
 		bool rvizClouds = true;

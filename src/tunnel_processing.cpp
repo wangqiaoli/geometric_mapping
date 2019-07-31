@@ -176,7 +176,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(
 												// visualization_msgs::MarkerArray*& debugMarkers,
 												const Window& window,
 												const tf2_ros::Buffer& tfBuffer,
-												const Eigen::Array3f& bounds, 
+												const boost::shared_ptr<Eigen::Array3f>& bounds,
 												const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
 												const std::string& baseFrame
 											 ) {
@@ -184,8 +184,8 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudChopped(new pcl::PointCloud<pcl::PointXYZ>);
 
 	pcl::CropBox<pcl::PointXYZ> boxFilter;
-	boxFilter.setMin(Eigen::Vector4f(-bounds(0), -bounds(1), -bounds(2), 1.0));
-	boxFilter.setMax(Eigen::Vector4f(bounds(0), bounds(1), bounds(2), 1.0));
+	boxFilter.setMin(Eigen::Vector4f(-bounds->at(0), -bounds->at(1), -bounds->at(2), 1.0));
+	boxFilter.setMax(Eigen::Vector4f(bounds->at(0), bounds->at(1), bounds->at(2), 1.0));
 
 	if(window.isRegistered) { //transforms box to velodyne
 		//retrieve the broadcasted transform to the world frame
@@ -527,7 +527,7 @@ boost::shared_ptr<visualization_msgs::MarkerArray> rvizEigens(
 
 //Displays Regression in rviz
 boost::shared_ptr<visualization_msgs::Marker> rvizCylinder(
-															const Eigen::Array3f& bounds,
+															const boost::shared_ptr<Eigen::Array3f>& bounds,
 															const Eigen::VectorXf& cylinderCoeffs,
 															const Eigen::Vector3f& centerAxis, 
 															const Eigen::Vector4f& color,

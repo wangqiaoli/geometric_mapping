@@ -53,7 +53,7 @@ Parameters::Parameters(ros::NodeHandle& node) {
 		ROS_INFO("ERROR: boxFilterBound set to default...");
 	}
 
-	boxFilterBounds = new Eigen::Array3f(boundsVector);
+	boxFilterBounds = boost::make_shared<Eigen::Array3f>(boundsVector);
 
 	if(node.getParam("voxelGridLeafSize", leafSize)) {
 		ROS_INFO("leafSize set to:\t %f", leafSize);
@@ -109,7 +109,7 @@ Parameters::Parameters(ros::NodeHandle& node) {
 		ROS_INFO("ERROR: radiusLimits set to default...");
 	}
 
-	radiusLimits = new Eigen::Array2f(radiusLimitsVector);
+	radiusLimits = boost::make_shared<Eigen::Array2f>(radiusLimitsVector);
 
 	if(node.getParam("displayDebugger", rvizDebugger)) {
 		ROS_INFO("displayDebugger set to:\t %d", rvizDebugger);
@@ -160,7 +160,7 @@ int Parameters::getWindowSize() {
 	return windowSize;
 }
 
-Eigen::Array3f* Parameters::getBoxFilterBounds() {
+boost::shared_ptr<Eigen::Array3f> Parameters::getBoxFilterBounds() {
 	return boxFilterBounds;
 }
 
@@ -188,7 +188,7 @@ double Parameters::getDistThreshold() {
 	return distThreshold;
 } 
 
-Eigen::Array2f* Parameters::getRadiusLimits() {
+boost::shared_ptr<Eigen::Array2f> Parameters::getRadiusLimits() {
 	return radiusLimits;
 }
 
