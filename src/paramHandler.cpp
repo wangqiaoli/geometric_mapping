@@ -16,14 +16,20 @@
 
 //Deals with the parameter data
 Parameters::Parameters(ros::NodeHandle& node) {
+	if(node.getParam("timer", timer)) {
+		ROS_INFO("timer set to:\t %f", timer);
+	} else {
+		ROS_INFO("ERROR: timer set to default...");
+	}
+
 	if(node.getParam("baseFrame", baseFrame)) {
-		ROS_INFO("baseFrame set to:\t %s",baseFrame.c_str());
+		ROS_INFO("baseFrame set to:\t %s", baseFrame.c_str());
 	} else {
 		ROS_INFO("ERROR: baseFrame set to default...");
 	}
 
 	if(node.getParam("inputFrame", inputFrame)) {
-		ROS_INFO("inputFrame set to:\t %s",inputFrame.c_str());
+		ROS_INFO("inputFrame set to:\t %s", inputFrame.c_str());
 	} else {
 		ROS_INFO("ERROR: inputFrame set to default...");
 	}
@@ -34,11 +40,11 @@ Parameters::Parameters(ros::NodeHandle& node) {
 		ROS_INFO("ERROR: windowSize set to default...");
 	}
 
-	std::string bounds;
+	std::string boxBounds;
 	Eigen::Array3f boundsVector;
-	if(node.getParam("boxFilterBoundXYZ", bounds)) {
-		char* cbounds = new char[bounds.length()+1];
-		std::strcpy(cbounds, bounds.c_str());
+	if(node.getParam("boxFilterBoundXYZ", boxBounds)) {
+		char* cbounds = new char[boxBounds.length()+1];
+		std::strcpy(cbounds, boxBounds.c_str());
 		char* pend;
 
 		float x = std::strtof(cbounds, &pend) / 2; //divide by 2 so that it will be more accurate
@@ -55,10 +61,43 @@ Parameters::Parameters(ros::NodeHandle& node) {
 
 	boxFilterBounds = boost::make_shared<Eigen::Array3f>(boundsVector);
 
+	std::string segBounds;
+	Eigen::Array3f segBoundsVector;
+	if(node.getParam("segmentBoundXYZ", segBounds)) {
+		char* cbounds = new char[segBounds.length()+1];
+		std::strcpy(cbounds, segBounds.c_str());
+		char* pend;
+
+		float x = std::strtof(cbounds, &pend) / 2; //divide by 2 so that it will be more accurate
+		float y = std::strtof(pend, &pend) / 2;
+		float z = std::strtof(pend, nullptr) / 2;
+		segBoundsVector = Eigen::Array3f(x, y, z);
+
+		ROS_INFO("segmentBound set to:\t %f, %f, %f", x, y, z);
+	} else {
+		segBoundsVector = Eigen::Array3f(1.0, 15.0, 15.0);
+
+		ROS_INFO("ERROR: segmentBound set to default...");
+	}
+
+	segmentBounds = boost::make_shared<Eigen::Array3f>(segBoundsVector);
+
 	if(node.getParam("voxelGridLeafSize", leafSize)) {
 		ROS_INFO("leafSize set to:\t %f", leafSize);
 	} else {
 		ROS_INFO("ERROR: leafSize set to default...");
+	}
+
+	if(node.getParam("rvizNormalSize", rvizNormalSize)) {
+		ROS_INFO("rvizNormalSize set to:\t %f", rvizNormalSize);
+	} else {
+		ROS_INFO("ERROR: rvizNormalSize set to default...");
+	}
+
+	if(node.getParam("rvizNormalFrequency", rvizNormalFrequency)) {
+		ROS_INFO("rvizNormalFrequency set to:\t %d", rvizNormalFrequency);
+	} else {
+		ROS_INFO("ERROR: rvizNormalFrequency set to default...");
 	}
 
 	if(node.getParam("neighborRadius", neighborRadius)) {
@@ -141,11 +180,27 @@ Parameters::Parameters(ros::NodeHandle& node) {
 		ROS_INFO("ERROR: displayCylinder set to default...");
 	}
 
+	if(node.getParam("displaySegments", rvizSegments)) {
+		ROS_INFO("displaySegments set to:\t %d", rvizSegments);
+	} else {
+		ROS_INFO("ERROR: displaySegments set to default...");
+	}
+
+	if(node.getParam("displayMap", rvizMap)) {
+		ROS_INFO("displayMap set to:\t %d", rvizMap);
+	} else {
+		ROS_INFO("ERROR: displayMap set to default...");
+	}
+
 	if(node.getParam("usePCLViz", pclviz)) {
 		ROS_INFO("pclviz set to:\t %d", pclviz);
 	} else {
 		ROS_INFO("ERROR: pclviz set to default...");
 	}
+}
+
+double Parameters::getTimer() {
+	return timer;
 }
 
 std::string Parameters::getBaseFrame() {
@@ -160,12 +215,24 @@ int Parameters::getWindowSize() {
 	return windowSize;
 }
 
-boost::shared_ptr<Eigen::Array3f> Parameters::getBoxFilterBounds() {
-	return boxFilterBounds;
+Eigen::Array3f Parameters::getBoxFilterBounds() {
+	return *boxFilterBounds;
+}
+
+Eigen::Array3f Parameters::getSegmentBounds() {
+	return *segmentBounds;
 }
 
 double Parameters::getLeafSize() {
 	return leafSize;
+}
+
+double Parameters::getrvizNormalSize() {
+	return rvizNormalSize;
+}
+
+int Parameters::getrvizNormalFrequency() {
+	return rvizNormalFrequency;
 }
 
 double Parameters::getNeighborRadius() {
@@ -188,8 +255,8 @@ double Parameters::getDistThreshold() {
 	return distThreshold;
 } 
 
-boost::shared_ptr<Eigen::Array2f> Parameters::getRadiusLimits() {
-	return radiusLimits;
+Eigen::Array2f Parameters::getRadiusLimits() {
+	return *radiusLimits;
 }
 
 bool Parameters::displayDebugger() {
@@ -210,6 +277,14 @@ bool Parameters::displayCenterAxis() {
 
 bool Parameters::displayCylinder() {
 	return rvizCylinder;
+}
+
+bool Parameters::displaySegments() {
+	return rvizSegments;
+}
+
+bool Parameters::displayMap() {
+	return rvizMap;
 }
 
 bool Parameters::usePCLViz() {

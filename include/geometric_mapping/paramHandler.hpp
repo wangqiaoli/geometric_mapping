@@ -16,33 +16,43 @@ class Parameters {
 	public:
 		Parameters(ros::NodeHandle& node);
 
+		double getTimer();
 		std::string getBaseFrame();
 		std::string getInputFrame();
 		int getWindowSize();
-		boost::shared_ptr<Eigen::Array3f> getBoxFilterBounds();
+		Eigen::Array3f getBoxFilterBounds();
+		Eigen::Array3f getSegmentBounds();
 		double getLeafSize();
+		double getrvizNormalSize();
+		int getrvizNormalFrequency();
 		double getNeighborRadius(); 
 		double getWeightingFactor();
 
 		double getNormalDistWeight(); 
   		int getMaxIterations(); 
   		double getDistThreshold(); 
-  		boost::shared_ptr<Eigen::Array2f> getRadiusLimits();
+  		Eigen::Array2f getRadiusLimits();
 		
 		bool displayDebugger();
 		bool displayClouds();
 		bool displayNormals();
 		bool displayCenterAxis();
 		bool displayCylinder();
+		bool displaySegments();
+		bool displayMap();
 
 		bool usePCLViz();
 
 	private:
+		double timer = 5.0;
 		std::string baseFrame = "world";
 		std::string inputFrame = "world";
 		int windowSize = 10;
-		boost::shared_ptr<Eigen::Array3f> boxFilterBounds;
+		boost::shared_ptr<Eigen::Array3f> boxFilterBounds; //make unique
+		boost::shared_ptr<Eigen::Array3f> segmentBounds; //make unique
 		double leafSize = .1;
+		double rvizNormalSize = 0.5;
+		int rvizNormalFrequency = 50;
 		double neighborRadius = .03;
 		double weightingFactor = .2;
 
@@ -56,6 +66,8 @@ class Parameters {
 		bool rvizNormals = true;
 		bool rvizCenterAxis = true;
 		bool rvizCylinder = true;
+		bool rvizSegments = true;
+		bool rvizMap = true;
 
 		bool pclviz = false; 
 };

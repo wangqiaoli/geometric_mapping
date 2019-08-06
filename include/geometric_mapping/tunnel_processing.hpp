@@ -4,6 +4,7 @@
 
 //standard functions
 #include <vector>
+#include <map>
 #include <deque> 
 #include <limits>
 #include <cmath>
@@ -59,13 +60,27 @@
 struct Window {
 	bool isRegistered = false;
 	int size = 1;
-	std::deque<pcl::PointCloud<pcl::PointXYZ>> cloudWindow;
-	std::deque<nav_msgs::Odometry> odometryWindow;
-	// std::map<double, uint> states; //keeps track of distance traveled since last regression and state
+	Eigen::Vector3f initPos;
+	Eigen::Quaternionf initQuat;
+	std::deque<pcl::PointCloud<pcl::PointXYZ>> cloudWindow; //use shared_ptr
+	std::deque<nav_msgs::Odometry> odometryWindow; //use shared_ptr
+};
+
+struct CloudSegment {
+	boost::shared_ptr<Eigen::Vector3f> position;
+	boost::shared_ptr<Eigen::Quaternionf> orientation;
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudSeg;
+	pcl::PointCloud<pcl::Normal>::Ptr normalSeg;
+};
+
+struct MapSegment {
+	boost::shared_ptr<Eigen::Vector3f> position;
+	boost::shared_ptr<Eigen::Quaternionf> orientation;
+	boost::shared_ptr<Eigen::VectorXf> cylinderCoeffs;
 };
 
 ////////////////////////////////////////////////////////
-//Declare Chrono Timing Functions (global vector of times)
+//Declare Chrono Timing Class (global vector of timer objects and process at the end)
 ////////////////////////////////////////////////////////
 
 //chrono initializer
@@ -78,43 +93,67 @@ struct Window {
 //Declare Point Cloud Processing Functions
 ////////////////////////////////////////////////////////
 
+//Implement voxelgrid filter on point cloud
+pcl::PointCloud<pcl::PointXYZ>::Ptr voxelFilterCloud(
+														const double& leafSize,
+														const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud
+											   		);
+
 //Creates Registered cloud from time series data
 pcl::PointCloud<pcl::PointXYZ>::Ptr registeredCloudUpdate(
 															// visualization_msgs::MarkerArray*& debugMarkers,
-															Window& window, 
+															boost::shared_ptr<Window>& window, 
 															const tf2_ros::Buffer& tfBuffer,
 															const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
 															const std::string& baseFrame = "world"
 						  								 );
 
-//Chops point cloud at each timestep
+//Chops point cloud at each timestep (generalized for segmentation)
 pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(
 												// visualization_msgs::MarkerArray*& debugMarkers,
 												const Window& window,
 												const tf2_ros::Buffer& tfBuffer,
-												const boost::shared_ptr<Eigen::Array3f>& bounds, 
+												const Eigen::Vector3f& bounds,
 												const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
-												const std::string& baseFrame = "world"
+												const std::string& baseFrame = "world",
+												const std::string& boxFrame = "velodyne",
+												const boost::optional<Eigen::Vector3f>& offset = boost::none,
+												const boost::optional<Eigen::Affine3d>& transform = boost::none
 											 );
 
 //Calculates and returns surface normals of point cloud and removes NAN points from the cloud
 pcl::PointCloud<pcl::Normal>::Ptr getNormals(
 												// visualization_msgs::MarkerArray*& debugMarkers,
 												const double& neighborRadius, 
-												pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
-												pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree, //set to dynamic memory in function
-												std::vector<int>& indicesMap
-											);
+												pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud
+											 );
 
 //Calculates center axis of the tunnel using the eigenvalues and eigenvectors of the normal cloud
 void getLocalFrame(
 					// visualization_msgs::MarkerArray*& debugMarkers,
+					const Window& window,
+					boost::shared_ptr<tf2_ros::TransformBroadcaster>& tfBroadcaster,
 					const int& cloudSize, 
 					const double& weightingFactor, //on [.1, .3]
 					const pcl::PointCloud<pcl::Normal>::Ptr& cloud_normals,
 					boost::shared_ptr<Eigen::Vector3f>& eigenVals,
-					boost::shared_ptr<Eigen::Matrix3f>& eigenVecs
+					boost::shared_ptr<Eigen::Matrix3f>& eigenVecs,
+					const std::string& baseFrame = "world",
+					const std::string& eigenFrame = "eigen"
 				  );
+
+//segments pointcloud according to local axis and returns segmented cloud and normals
+std::deque<CloudSegment> segmentCloud(
+										const Window& window, 
+										const tf2_ros::Buffer& tfBuffer,
+										const Eigen::Array3f& cloudBounds,
+										const Eigen::Array3f& segBounds, 
+										const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
+										const pcl::PointCloud<pcl::Normal>::Ptr& normals,
+										const Eigen::Vector3f& centerAxis,
+										const std::string& baseFrame = "world",
+										const std::string& eigenFrame = "eigen"
+									  );
 
 //Regression function 
 boost::shared_ptr<Eigen::VectorXf> getCylinder(
@@ -124,6 +163,13 @@ boost::shared_ptr<Eigen::VectorXf> getCylinder(
 												const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
 												const pcl::PointCloud<pcl::Normal>::Ptr& normals
 											  );
+
+//Loops through segments and finds regression for each
+std::deque<MapSegment> mapCloud(
+									const double& distThreshold,
+									const Eigen::Vector3f& centerAxis,
+									const std::vector<CloudSegment>& segments
+								);
 
 //state machine for detecting walls, orientation, intersections, and tunnels
 // void stateMachine(	
@@ -147,12 +193,22 @@ boost::shared_ptr<visualization_msgs::Marker> rvizArrow(
 															const std::string& frame = "/world"
 									 					);
 
-//Displays surface normals in rviz using VoxelGrid Filter and KD tree to free computing power
+//Displays single plane in rviz
+boost::shared_ptr<visualization_msgs::Marker> rvizCube(
+														const Eigen::Vector3f& position,
+														const Eigen::Quaternionf& orientation,
+														const Eigen::Vector3f& scale, 
+														const Eigen::Vector4f& color,
+														const std::string& ns,
+														const int& id,
+														const std::string& frame = "/world"
+									 				  );
+
+//Displays surface normals in rviz
 boost::shared_ptr<visualization_msgs::MarkerArray> rvizNormals(
-																const double& leafSize, 
-																const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, 
-																const pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree,
-																const std::vector<int>& indicesMap,
+																const double& normalSize,
+																const int& normalFrequency,
+																const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
 																const pcl::PointCloud<pcl::Normal>::Ptr& normals
 															  );
 
@@ -162,25 +218,32 @@ boost::shared_ptr<visualization_msgs::MarkerArray> rvizEigens(
 																const boost::shared_ptr<Eigen::Matrix3f>& eigenVecs
 															 );
 
-//Displays segment barriers
-// visualization_msgs::MarkerArray* rvizWall();
-
 //Displays regression in rviz
 boost::shared_ptr<visualization_msgs::Marker> rvizCylinder(
-															const boost::shared_ptr<Eigen::Array3f>& bounds,
+															const Eigen::Array3f& segBounds,
 															const Eigen::VectorXf& cylinderCoeffs,
-															const Eigen::Vector3f& centerAxis,
+															const Eigen::Vector3f& centerAxis, 
 															const Eigen::Vector4f& color,
 															const std::string& ns,
-															const int& id = 0,
-															const std::string& baseFrame = "/world"
+															const int& id,
+															const std::string& frame = "world"
 														  );
 
 //Displays Segments
-// visualization_msgs::MarkerArray* rvizSegments();
+boost::shared_ptr<visualization_msgs::MarkerArray> rvizSegments(
+																	const Eigen::Array3f& segBounds,
+																	const std::deque<CloudSegment>& segments,
+																	const Eigen::Vector3f& centerAxis,
+																	const std::string& ns
+											 					) ;
 
-//Displays Map
-// visualization_msgs::MarkerArray* rvizMap();
+//Display geometric map
+boost::shared_ptr<visualization_msgs::MarkerArray> rvizMap(
+															const Eigen::Array3f& segBounds,
+															const std::deque<MapSegment>& segments,
+															const Eigen::Vector3f& centerAxis,
+															const std::string& ns
+										 				  );
 
 //Displays cloud and normals on PCL Visualizer
 void pclvizNormals(

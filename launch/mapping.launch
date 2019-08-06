@@ -13,12 +13,16 @@
   <!-- Parameters -->
   <param name="/use_sim_time" value="true"/> <!--For bags to work in simulated time-->
 
+  <param name="timer" value="5.0" type="double"/>
   <param name="baseFrame" value="world" type="string"/> <!-- MUST CHANGE TO '/velodyne' IF NOT REGISTERED -->
   <param name="inputFrame" value="camera_init" type="string"/>
   <param name="windowSize" value="3" type="int"/> <!-- MUST CHANGE TO '1' IF NOT REGISTERED -->
 
   <param name="boxFilterBoundXYZ" value="2.5 2.5 2.5" type="string"/>
-  <param name="voxelGridLeafSize" value="0.5" type="double"/>
+  <param name="segmentBoundXYZ" value="0.5 0.5 0.5" type="string"/>
+  <param name="voxelGridLeafSize" value="0.01" type="double"/>
+  <param name="rvizNormalSize" value="0.4" type="double"/>
+  <param name="rvizNormalFrequency" value="5" type="int"/>
   <param name="neighborRadius" value="0.1" type="double"/>
   <param name="weightingFactor" value=".2" type="double"/>  
 
@@ -32,6 +36,8 @@
   <param name="displayNormals" value="true" type="bool"/>
   <param name="displayCenterAxis" value="true" type="bool"/>
   <param name="displayCylinder" value="false" type="bool"/>
+  <param name="displaySegments" value="false" type="bool"/>
+  <param name="displayMap" value="false" type="bool"/>
   <param name="displayDebugger" value="true" type="bool"/>
 
   <param name="usePCLViz" value="$(arg pclviz)" type="bool"/>
