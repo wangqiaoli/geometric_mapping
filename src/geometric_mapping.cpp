@@ -241,15 +241,11 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& inputCloud) {
 																	cloud
 																);
 
-	ROS_INFO("Box filter applied...");
-
 	//voxel filter point cloud densly
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudVoxelFiltered = voxelFilterCloud(
 																				params->getLeafSize(),
 																				cloudChopped
 																			 );
-
-	ROS_INFO("VoxelGrid filter applied...");
 
 	ROS_INFO("Chopped cloud size is:\t %d", (int) cloudVoxelFiltered->points.size());
 
@@ -360,8 +356,9 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& inputCloud) {
 											centerAxis,
 											Eigen::Vector4f(.6, 1, .65, 0),
 											"cylinderModel",
-											0
-										 );
+											0,
+											"/velodyne"
+										);
 
 		//Publish the data
 		cylinderPub.publish(*cylinderDisp);

@@ -248,6 +248,8 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr chopCloud(
 	boxFilter.setInputCloud(cloud);
 	boxFilter.filter(*cloudChopped);
 
+	ROS_INFO("Box filter applied...");
+
 	return cloudChopped;
 }
 
@@ -787,25 +789,25 @@ boost::shared_ptr<visualization_msgs::Marker> rvizCylinder(
 	cylinder->action = visualization_msgs::Marker::ADD;
 
 	//set pose inline with center axis and convert to quaternion
-	cylinder->pose.position.x = cylinderCoeffs[0];
-	cylinder->pose.position.y = cylinderCoeffs[1];
-	cylinder->pose.position.z = cylinderCoeffs[2];
+	cylinder->pose.position.x = -5;//cylinderCoeffs[0];
+	cylinder->pose.position.y = 0;//cylinderCoeffs[1];
+	cylinder->pose.position.z = 0;//cylinderCoeffs[2];
 
 	//convert coeffs to quaternions
 	Eigen::Quaternionf orientation;
 	orientation.setFromTwoVectors(Eigen::Vector3f::Zero(), centerAxis);
 
-	cylinder->pose.orientation.x = orientation.x();
-	cylinder->pose.orientation.y = orientation.y();
-	cylinder->pose.orientation.z = orientation.z();
-	cylinder->pose.orientation.w = orientation.w();
+	cylinder->pose.orientation.x = 0;//orientation.x();
+	cylinder->pose.orientation.y = .7071;//orientation.y();
+	cylinder->pose.orientation.z = 0;//orientation.z();
+	cylinder->pose.orientation.w = .7071;//orientation.w();
 
 	//scale coefficients (diameter, direction, height)
-	cylinder->scale.x = 2*cylinderCoeffs[6];
-	cylinder->scale.y = 2*cylinderCoeffs[6];
+	cylinder->scale.x = 3;//2*cylinderCoeffs[6];
+	cylinder->scale.y = 3;//2*cylinderCoeffs[6];
 
 	Eigen::Vector3f boundVec(segBounds);
-	cylinder->scale.z = boundVec(2);
+	cylinder->scale.z = 5;//boundVec(2);
 
 	//set normal colors
 	cylinder->color.a = color(0);
