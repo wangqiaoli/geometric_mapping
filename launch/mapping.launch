@@ -16,7 +16,7 @@
   <param name="timer" value="5.0" type="double"/>
   <param name="baseFrame" value="world" type="string"/> <!-- MUST CHANGE TO '/velodyne' IF NOT REGISTERED -->
   <param name="inputFrame" value="camera_init" type="string"/>
-  <param name="windowSize" value="10" type="int"/> <!-- MUST CHANGE TO '1' IF NOT REGISTERED -->
+  <param name="windowSize" value="2" type="int"/> <!-- MUST CHANGE TO '1' IF NOT REGISTERED -->
 
   <param name="boxFilterBoundXYZ" value="5.0 5.0 5.0" type="string"/>
   <param name="segmentBoundXYZ" value="0.5 0.5 0.5" type="string"/>

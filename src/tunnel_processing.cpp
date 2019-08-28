@@ -140,6 +140,9 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr registeredCloudUpdate(
 	//add cloud to window and 
 	window->cloudWindow.push_front(*registeredCloud);
 
+	//add cloud to total
+	window->totalWindow.push_front(*registeredCloud);
+
 	ROS_INFO_STREAM("Registered cloud frame is:\t" << registeredCloud->header.frame_id);
 
 	//set loop for either window.size iterations or for number of iterations passed since start
@@ -790,7 +793,7 @@ boost::shared_ptr<visualization_msgs::Marker> rvizCylinder(
 
 	//set pose inline with center axis and convert to quaternion
 	cylinder->pose.position.x = -5;//cylinderCoeffs[0];
-	cylinder->pose.position.y = 0;//cylinderCoeffs[1];
+	cylinder->pose.position.y = 0;//cylinderCoeffs[1];			//need to figure out what these do
 	cylinder->pose.position.z = 0;//cylinderCoeffs[2];
 
 	//convert coeffs to quaternions

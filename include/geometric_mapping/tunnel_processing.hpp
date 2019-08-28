@@ -62,6 +62,7 @@ struct Window {
 	int size = 1;
 	Eigen::Vector3f initPos;
 	Eigen::Quaternionf initQuat;
+	pcl::PointCLoud<pcl::PointXYZ>::Ptr totalWindow;
 	std::deque<pcl::PointCloud<pcl::PointXYZ>> cloudWindow; //use shared_ptr
 	std::deque<nav_msgs::Odometry> odometryWindow; //use shared_ptr
 };

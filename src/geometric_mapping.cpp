@@ -1,5 +1,5 @@
-#ifndef PCL_PRACTICE_CPP
-#define PCL_PRACTICE_CPP
+#ifndef GEOMETRIC_MAPPING_CPP
+#define GEOMETRIC_MAPPING_CPP
 
 
 //standard functions
@@ -145,20 +145,20 @@ int main(int argc, char** argv) {
 		choppedCloudPub = node.advertise<sensor_msgs::PointCloud2>("choppedCloudOutput", 10);
 	}
 
-	//Create ROS publisher for normals
-	if(params->displayNormals()) {
-		normalsPub = node.advertise<visualization_msgs::MarkerArray>("normalsOutput", 10);
-	}
+	// //Create ROS publisher for normals
+	// if(params->displayNormals()) {
+	// 	normalsPub = node.advertise<visualization_msgs::MarkerArray>("normalsOutput", 10);
+	// }
 
-	//Create ROS publisher for center Axis and scaled eigenvecs
-	if(params->displayCenterAxis()) {
-		eigenBasisPub = node.advertise<visualization_msgs::MarkerArray>("eigenBasisOutput", 10);
-	}
+	// //Create ROS publisher for center Axis and scaled eigenvecs
+	// if(params->displayCenterAxis()) {
+	// 	eigenBasisPub = node.advertise<visualization_msgs::MarkerArray>("eigenBasisOutput", 10);
+	// }
 
-	//Create ROS publisher for cylinder
-	if(params->displayCylinder()) {
-		cylinderPub = node.advertise<visualization_msgs::Marker>("cylinderOutput", 10);
-	}
+	// //Create ROS publisher for cylinder
+	// if(params->displayCylinder()) {
+	// 	cylinderPub = node.advertise<visualization_msgs::Marker>("cylinderOutput", 10);
+	// }
 
 	// //Create ROS publisher for segment barriers
 	// if(params->displayCenterAxis()) {
@@ -249,42 +249,42 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& inputCloud) {
 
 	ROS_INFO("Chopped cloud size is:\t %d", (int) cloudVoxelFiltered->points.size());
 
-	//Find Surface Normals
-	pcl::PointCloud<pcl::Normal>::Ptr cloudNormals = getNormals(
-																	params->getNeighborRadius(), 
-																	cloudVoxelFiltered
-																);
+	// //Find Surface Normals
+	// pcl::PointCloud<pcl::Normal>::Ptr cloudNormals = getNormals(
+	// 																params->getNeighborRadius(), 
+	// 																cloudVoxelFiltered
+	// 															);
 
-	ROS_INFO("Surface normals found...");
+	// ROS_INFO("Surface normals found...");
 
-	auto eigenVals = boost::make_shared<Eigen::Vector3f>();
-	auto eigenVecs = boost::make_shared<Eigen::Matrix3f>();
+	// auto eigenVals = boost::make_shared<Eigen::Vector3f>();
+	// auto eigenVecs = boost::make_shared<Eigen::Matrix3f>();
 
-	getLocalFrame(
-					*window,
-					tfBroadcaster,
-					cloudVoxelFiltered->points.size(), 
-					params->getWeightingFactor(),
-					cloudNormals,
-					eigenVals,
-					eigenVecs
-				 );
+	// getLocalFrame(
+	// 				*window,
+	// 				tfBroadcaster,
+	// 				cloudVoxelFiltered->points.size(), 
+	// 				params->getWeightingFactor(),
+	// 				cloudNormals,
+	// 				eigenVals,
+	// 				eigenVecs
+	// 			 );
 
-	//get center axis and assume that first eigenvec is smallest
-	Eigen::Vector3f centerAxis;
-	centerAxis = eigenVecs->block<3,1>(0,0);
+	// //get center axis and assume that first eigenvec is smallest
+	// Eigen::Vector3f centerAxis;
+	// centerAxis = eigenVecs->block<3,1>(0,0);
 
-	ROS_INFO("Center Axis found...");
+	// ROS_INFO("Center Axis found...");
 
-	//get local cylinder model using RANSAC
-	auto cylinderModel = getCylinder(
-										params->getDistThreshold(),
-										centerAxis,
-										cloudChopped,
-										cloudNormals
-									);
+	// //get local cylinder model using RANSAC
+	// auto cylinderModel = getCylinder(
+	// 									params->getDistThreshold(),
+	// 									centerAxis,
+	// 									cloudChopped,
+	// 									cloudNormals
+	// 								);
 
-	ROS_INFO("Local Cylinder Model found...");
+	// ROS_INFO("Local Cylinder Model found...");
 
 	// //Segment the point cloud
 	// std::vector<CloudSegment> cloudSegments = segmentCloud(
@@ -322,47 +322,47 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& inputCloud) {
 		ROS_INFO("Registered cloud posted to rviz...");
 	}
 
-	//visualize normals in pcl
-  	if(params->usePCLViz()) {
-  		pclvizNormals(pcl_var, *viewer, cloudChopped, cloudNormals);
-  	}
+	// //visualize normals in pcl
+  	// if(params->usePCLViz()) {
+  	// 	pclvizNormals(pcl_var, *viewer, cloudChopped, cloudNormals);
+  	// }
 
-  	//visualize normals in rviz
-	if(params->displayNormals()) {
-	  	auto normalsDisp = rvizNormals(
-	  									params->getrvizNormalSize(),
-	  									params->getrvizNormalFrequency(),
-	  									cloudChopped,
-	  									cloudNormals
-	  								  );
+  	// //visualize normals in rviz
+	// if(params->displayNormals()) {
+	//   	auto normalsDisp = rvizNormals(
+	//   									params->getrvizNormalSize(),
+	//   									params->getrvizNormalFrequency(),
+	//   									cloudChopped,
+	//   									cloudNormals
+	//   								  );
 
-		//Publish the normals
-		normalsPub.publish(*normalsDisp);
-	}
+	// 	//Publish the normals
+	// 	normalsPub.publish(*normalsDisp);
+	// }
 
-	//visualize center axis in rviz
-	if(params->displayCenterAxis()) {
-		auto eigenBasis = rvizEigens(eigenVals, eigenVecs);
+	// //visualize center axis in rviz
+	// if(params->displayCenterAxis()) {
+	// 	auto eigenBasis = rvizEigens(eigenVals, eigenVecs);
 
-		//Publish the center axis
-		eigenBasisPub.publish(*eigenBasis);
-	}
+	// 	//Publish the center axis
+	// 	eigenBasisPub.publish(*eigenBasis);
+	// }
 
-	//visualize cylinder in rviz
-	if(params->displayCylinder()) {
-		auto cylinderDisp = rvizCylinder(
-											params->getSegmentBounds(),
-											*cylinderModel,
-											centerAxis,
-											Eigen::Vector4f(.6, 1, .65, 0),
-											"cylinderModel",
-											0,
-											"/velodyne"
-										);
+	// //visualize cylinder in rviz
+	// if(params->displayCylinder()) {
+	// 	auto cylinderDisp = rvizCylinder(
+	// 										params->getSegmentBounds(),
+	// 										*cylinderModel,
+	// 										centerAxis,
+	// 										Eigen::Vector4f(.6, 1, .65, 0),
+	// 										"cylinderModel",
+	// 										0,
+	// 										"/velodyne"
+	// 									);
 
-		//Publish the data
-		cylinderPub.publish(*cylinderDisp);
-	}
+	// 	//Publish the data
+	// 	cylinderPub.publish(*cylinderDisp);
+	// }
 
 	// //visualize cloud segments
 	// if(params->displaySegments()) {
